@@ -1,6 +1,6 @@
 import { Person, Expense, Week, GroupSettings, Bill } from '../types';
 
-const BASE_URL = 'http://127.0.0.1:8000/api';
+export const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://127.0.0.1:8000/api';
 
 export interface SplitMeta {
   paidByMap?: Record<string, number>;

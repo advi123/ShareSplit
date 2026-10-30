@@ -1,5 +1,5 @@
 import { Person, Expense, Week, GroupSettings, Bill } from '../types';
-import { apiService } from './apiService';
+import { apiService, BASE_URL } from './apiService';
 
 export const storageService = {
   // Members
@@ -168,7 +168,7 @@ export const storageService = {
     for (const m of members) {
       if (!['mem-you', 'mem-b', 'mem-c'].includes(m.id)) {
         try {
-          await fetch(`http://127.0.0.1:8000/api/members/${m.id}`, { method: 'DELETE' });
+          await fetch(`${BASE_URL}/members/${m.id}`, { method: 'DELETE' });
         } catch {}
       } else if (!m.isActive) {
         try {

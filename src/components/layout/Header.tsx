@@ -11,9 +11,11 @@ export const Header: React.FC = () => {
   };
 
   const formatDateRange = (start: string, end: string) => {
+    if (!start || !end) return 'Current Week';
     try {
       const s = new Date(start);
       const e = new Date(end);
+      if (isNaN(s.getTime()) || isNaN(e.getTime())) return 'Current Week';
       const sStr = s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const eStr = e.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       return `${sStr} – ${eStr}`;

@@ -194,13 +194,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sessionStorage.removeItem(`sharesplit_week_dismissed_${week.id}`);
       }
 
-      await storageService.saveExpense(expense);
-      await loadAllData();
-      showToast(`Expense "${expense.description}" saved!`);
+      // Close modal immediately and update UI optimistically (0ms response)
       closeModal();
       setPendingReopen(null);
+
+      const isNew = !expense.id || expense.id.startsWith('new-');
+      const optimisticId = isNew ? `temp-${Date.now()}` : expense.id;
+      const optimisticItem: Expense = {
+        ...expense,
+        id: optimisticId,
+        weekId: expense.weekId || week.id
+      };
+
+      setExpenses((prev) =>
+        isNew ? [optimisticItem, ...prev] : prev.map((e) => (e.id === expense.id ? optimisticItem : e))
+      );
+
+      await storageService.saveExpense(expense);
+      await loadAllData();
+      showToast(`Expense "${expense.description}" saved!`, 'success');
     } catch (err: any) {
       showToast(err.message || 'Failed to save expense', 'error');
+      await loadAllData();
     }
   };
 
@@ -218,12 +233,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteExpense = async (id: string) => {
     try {
       const target = expenses.find((e) => e.id === id);
+      // Close modal and remove from UI immediately (0ms response)
+      closeModal();
+      setExpenses((prev) => prev.filter((e) => e.id !== id));
+      showToast(`Deleted expense "${target?.description || 'item'}"`, 'info');
+
       await storageService.deleteExpense(id);
       await loadAllData();
-      showToast(`Deleted expense "${target?.description || 'item'}"`, 'info');
-      closeModal();
     } catch (err: any) {
       showToast(err.message || 'Failed to delete expense', 'error');
+      await loadAllData();
     }
   };
 

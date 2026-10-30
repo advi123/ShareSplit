@@ -52,6 +52,7 @@ export const AddExpenseModal: React.FC = () => {
   const [items, setItems] = useState<ItemizedExpenseItem[]>([]);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     if (activeModal === 'add-expense') {
@@ -207,8 +208,9 @@ export const AddExpenseModal: React.FC = () => {
 
   const itemizedTotalBill = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMsg(null);
 
     if (activeTab === 'simple') {
@@ -298,7 +300,12 @@ export const AddExpenseModal: React.FC = () => {
         weekId: isEditing && selectedExpense ? (selectedExpense.weekId || '') : ''
       };
 
-      addOrUpdateExpense(newExpense);
+      setIsSubmitting(true);
+      try {
+        await addOrUpdateExpense(newExpense);
+      } finally {
+        setIsSubmitting(false);
+      }
     } else {
       if (!itemizedTitle.trim()) {
         setErrorMsg('Please enter an expense title.');
@@ -330,7 +337,12 @@ export const AddExpenseModal: React.FC = () => {
         weekId: isEditing && selectedExpense ? (selectedExpense.weekId || '') : ''
       };
 
-      addOrUpdateExpense(newExpense);
+      setIsSubmitting(true);
+      try {
+        await addOrUpdateExpense(newExpense);
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -887,9 +899,10 @@ export const AddExpenseModal: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 rounded-xl shadow-2xs transition-colors duration-150"
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 rounded-xl shadow-2xs transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isEditing ? 'Save Changes' : 'Add Expense'}
+                  {isSubmitting ? (isEditing ? 'Saving...' : 'Adding...') : (isEditing ? 'Save Changes' : 'Add Expense')}
                 </button>
               </div>
             </div>

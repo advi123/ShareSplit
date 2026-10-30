@@ -7,6 +7,7 @@ import { calculateSingleExpenseShares, calculateExpensePayments } from '../../se
 
 export const ExpenseDetailModal: React.FC = () => {
   const { activeModal, closeModal, selectedExpense, members, settings, deleteExpense, openModal, addOrUpdateExpense, showToast } = useApp();
+  const [isDeleting, setIsDeleting] = React.useState(false);
 
   if (activeModal !== 'expense-detail' || !selectedExpense) return null;
 
@@ -223,11 +224,20 @@ export const ExpenseDetailModal: React.FC = () => {
               <span>Edit</span>
             </button>
             <button
-              onClick={() => deleteExpense(selectedExpense.id)}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-xl transition-colors"
+              disabled={isDeleting}
+              onClick={async () => {
+                if (isDeleting) return;
+                setIsDeleting(true);
+                try {
+                  await deleteExpense(selectedExpense.id);
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Trash2 className="w-4 h-4" />
-              <span>Delete</span>
+              <span>{isDeleting ? 'Deleting...' : 'Delete'}</span>
             </button>
           </div>
           <button

@@ -6,11 +6,11 @@ from fastapi import HTTPException
 
 # In-memory cached model list to avoid repeated ListModels network roundtrips
 _CACHED_MODELS: list[str] = [
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash-8b",
-    "gemini-2.0-flash-exp"
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+    "gemini-3.7-flash",
+    "gemini-2.5-flash",
+    "gemini-flash-latest"
 ]
 
 async def refresh_available_gemini_models(key: str) -> list[str]:

@@ -308,7 +308,7 @@ export const BillUploadModal: React.FC = () => {
       for (let idx = 0; idx < updated.length; idx++) {
         const item = updated[idx];
         const optimizedImage = await compressImageForAI(item.originalPreview, 1400, 0.85);
-        const aiResult = await apiService.bills.parseAI(optimizedImage, apiKeyToUse);
+        const aiResult = await apiService.bills.parseAI(optimizedImage, apiKeyToUse || undefined);
 
         if (aiResult) {
           if (aiResult.storeName) item.storeName = aiResult.storeName;
@@ -336,7 +336,13 @@ export const BillUploadModal: React.FC = () => {
       console.error('AI Vision parsing failed:', err);
       setBillQueue(itemsToScan);
       setStep('review');
-      alert(err.message || 'AI Vision failed to read receipt. Please verify your free Gemini API key.');
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('api key') || msg.toLowerCase().includes('gemini api key is required')) {
+        setKeyPendingAction(() => () => handleRunAIVision(itemsToScan.length === 1 ? currentQueueIndex : undefined));
+        setShowKeyModal(true);
+      } else {
+        alert(msg || 'AI Vision failed to read receipt. Please verify your free Gemini API key.');
+      }
     } finally {
       setIsProcessing(false);
       setProcessingStatus('');
@@ -445,12 +451,6 @@ export const BillUploadModal: React.FC = () => {
 
   const handleRunAIVision = async (targetIndex?: number) => {
     const apiKey = localStorage.getItem('sharesplit_gemini_api_key') || geminiKeyInput.trim();
-    if (!apiKey) {
-      setKeyPendingAction(() => () => handleRunAIVision(targetIndex));
-      setShowKeyModal(true);
-      return;
-    }
-
     const indices = targetIndex !== undefined ? [targetIndex] : billQueue.map((_, i) => i);
     if (indices.length === 0) return;
 

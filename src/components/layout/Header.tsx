@@ -1,9 +1,9 @@
 import React from 'react';
-import { Calendar, Moon, Sun, RefreshCw } from 'lucide-react';
+import { Calendar, Moon, Sun, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const Header: React.FC = () => {
-  const { currentWeek, settings, updateSettings, resetAllData } = useApp();
+  const { currentWeek, settings, updateSettings, resetAllData, activeSection, setActiveSection } = useApp();
 
   const toggleTheme = () => {
     const nextTheme = settings.theme === 'dark' ? 'light' : 'dark';
@@ -50,8 +50,21 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Right actions: Clean Theme & Reset */}
-        <div className="flex items-center gap-2">
+        {/* Right actions: Settings, Clean Theme & Reset */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Settings button - easily accessible on mobile and desktop */}
+          <button
+            onClick={() => setActiveSection('settings')}
+            className={`p-2 rounded-xl transition-colors ${
+              activeSection === 'settings'
+                ? 'bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400 font-bold'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+            title="Settings"
+          >
+            <SettingsIcon className="w-4 h-4" />
+          </button>
+
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}

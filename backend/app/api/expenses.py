@@ -33,7 +33,10 @@ def read_expenses(
         source=source,
         expense_type=expense_type
     )
-    return [expense_service.build_expense_response(db, e) for e in raw_expenses]
+    import app.repositories.member_repository as member_repo
+    members = member_repo.get_members(db, group.id, include_inactive=True)
+    members_map = {m.id: m.name for m in members}
+    return [expense_service.build_expense_response(db, e, members_map) for e in raw_expenses]
 
 @router.post("", response_model=ExpenseResponse)
 def create_expense(expense_in: ExpenseCreate, db: Session = Depends(get_db)):

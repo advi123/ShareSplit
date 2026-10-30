@@ -12,7 +12,7 @@ import app.services.week_service as week_service
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseItemResponse, CalculatedShare
 from app.utils.calculations import split_amount_equally
 
-def calculate_shares_from_orm(db: Session, expense: Expense) -> list[CalculatedShare]:
+def calculate_shares_from_orm(db: Session, expense: Expense, members_map: dict[str, str] | None = None) -> list[CalculatedShare]:
     shares_map = {}
     if expense.type == "simple":
         participants = expense.participants
@@ -30,16 +30,24 @@ def calculate_shares_from_orm(db: Session, expense: Expense) -> list[CalculatedS
                     
     calculated_shares = []
     for m_id, amount in shares_map.items():
-        member = member_repo.get_member(db, m_id)
-        m_name = member.name if member else "Unknown Member"
+        if members_map and m_id in members_map:
+            m_name = members_map[m_id]
+        else:
+            member = member_repo.get_member(db, m_id)
+            m_name = member.name if member else "Unknown Member"
         calculated_shares.append(
             CalculatedShare(member_id=m_id, member_name=m_name, amount=amount)
         )
     return calculated_shares
 
-def build_expense_response(db: Session, expense: Expense) -> ExpenseResponse:
-    payer = member_repo.get_member(db, expense.paid_by)
-    payer_name = payer.name if payer else "Unknown Member"
+def build_expense_response(db: Session, expense: Expense, members_map: dict[str, str] | None = None) -> ExpenseResponse:
+    if members_map and expense.paid_by in members_map:
+        payer_name = members_map[expense.paid_by]
+    elif expense.payer:
+        payer_name = expense.payer.name
+    else:
+        payer = member_repo.get_member(db, expense.paid_by)
+        payer_name = payer.name if payer else "Unknown Member"
     
     participants_ids = [p.id for p in expense.participants]
     
@@ -54,7 +62,7 @@ def build_expense_response(db: Session, expense: Expense) -> ExpenseResponse:
             )
         )
         
-    shares = calculate_shares_from_orm(db, expense)
+    shares = calculate_shares_from_orm(db, expense, members_map)
     
     bill_id = expense.bill.id if expense.bill else None
     bill_stored_filename = expense.bill.stored_filename if expense.bill else None

@@ -1,12 +1,17 @@
 import uuid
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.models.expense import Expense
 from app.models.expense_item import ExpenseItem
 from app.models.member import Member
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate
 
 def get_expense(db: Session, expense_id: str) -> Expense | None:
-    return db.query(Expense).filter(Expense.id == expense_id).first()
+    return db.query(Expense).options(
+        selectinload(Expense.participants),
+        selectinload(Expense.payer),
+        selectinload(Expense.bill),
+        selectinload(Expense.items).selectinload(ExpenseItem.participants)
+    ).filter(Expense.id == expense_id).first()
 
 def get_expenses(
     db: Session,
@@ -20,7 +25,12 @@ def get_expenses(
     source: str | None = None,
     expense_type: str | None = None
 ) -> list[Expense]:
-    query = db.query(Expense).filter(Expense.group_id == group_id)
+    query = db.query(Expense).options(
+        selectinload(Expense.participants),
+        selectinload(Expense.payer),
+        selectinload(Expense.bill),
+        selectinload(Expense.items).selectinload(ExpenseItem.participants)
+    ).filter(Expense.group_id == group_id)
     if date:
         query = query.filter(Expense.date == date)
     if start_date:

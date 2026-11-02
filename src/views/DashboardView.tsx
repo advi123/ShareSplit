@@ -4,7 +4,8 @@ import {
   PlusCircle,
   Upload,
   ChevronRight,
-  Receipt
+  Receipt,
+  History
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { calculateNetBalances, simplifyDebts } from '../services/settlementEngine';
@@ -205,8 +206,8 @@ export const DashboardView: React.FC = () => {
           Settlement will be calculated from all expenses recorded this week. All debts will be simplified to the minimum required transactions.
         </p>
 
-        {/* Simplified preview count */}
-        <div className="flex items-center justify-between pt-2">
+        {/* Simplified preview count & Action buttons */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
           <div className="text-xs text-slate-400">
             Current net result:{' '}
             <strong className="text-white">
@@ -214,13 +215,24 @@ export const DashboardView: React.FC = () => {
             </strong>
           </div>
 
-          <button
-            onClick={() => setActiveSection('weekly-settlement')}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs rounded-xl shadow-md transition-colors"
-          >
-            <span>View Weekly Settlement</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setActiveSection('history')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 text-slate-200 hover:bg-slate-700 font-bold text-xs rounded-xl transition-colors border border-slate-700"
+              title="View archived past weeks"
+            >
+              <History className="w-3.5 h-3.5 text-brand-400" />
+              <span>Weekly History</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSection('weekly-settlement')}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs rounded-xl shadow-md transition-colors"
+            >
+              <span>Settlement</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

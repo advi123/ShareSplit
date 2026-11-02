@@ -53,15 +53,27 @@ interface AppContextType {
   resetAllData: () => void;
 }
 
+const CACHE_KEY = 'sharesplit_cache_v1';
+
+function getInitialCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+const initialCache = getInitialCache();
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [members, setMembers] = useState<Person[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [currentWeek, setCurrentWeek] = useState<Week>({ id: '', startDate: '', endDate: '', status: 'active' });
-  const [historicalWeeks, setHistoricalWeeks] = useState<Week[]>([]);
-  const [settings, setSettings] = useState<GroupSettings>({
+  const [members, setMembers] = useState<Person[]>(initialCache?.members || []);
+  const [expenses, setExpenses] = useState<Expense[]>(initialCache?.expenses || []);
+  const [bills, setBills] = useState<Bill[]>(initialCache?.bills || []);
+  const [currentWeek, setCurrentWeek] = useState<Week>(initialCache?.currentWeek || { id: '', startDate: '', endDate: '', status: 'active' });
+  const [historicalWeeks, setHistoricalWeeks] = useState<Week[]>(initialCache?.historicalWeeks || []);
+  const [settings, setSettings] = useState<GroupSettings>(initialCache?.settings || {
     groupName: 'Home',
     currency: '₹',
     weekStartsOn: 'Monday',
@@ -94,24 +106,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loadAllData = async () => {
     try {
-      const fetchedMembers = await storageService.getMembers();
-      const fetchedExpenses = await storageService.getExpenses();
-      const fetchedBills = await storageService.getBills();
-      const fetchedCurrentWeek = await storageService.getCurrentWeek();
-      const fetchedHistoricalWeeks = await storageService.getHistoricalWeeks();
-      const fetchedSettings = await storageService.getSettings();
+      const data = await storageService.loadAllInitial();
 
-      setMembers(fetchedMembers);
-      setExpenses(fetchedExpenses);
-      setBills(fetchedBills);
-      setCurrentWeek(fetchedCurrentWeek);
-      setHistoricalWeeks(fetchedHistoricalWeeks);
-      setSettings(fetchedSettings);
+      setMembers(data.members);
+      setExpenses(data.expenses);
+      setBills(data.bills);
+      setCurrentWeek(data.currentWeek);
+      setHistoricalWeeks(data.historicalWeeks);
+      setSettings(data.settings);
+
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          members: data.members,
+          expenses: data.expenses,
+          bills: data.bills,
+          currentWeek: data.currentWeek,
+          historicalWeeks: data.historicalWeeks,
+          settings: data.settings
+        }));
+      } catch {}
 
       // Only ask about the past week which is NOT closed!
       // Once entered as cleared, it is closed in the backend and never prompted again.
       // Older weeks and already-closed weeks are never prompted.
-      const immediatelyPrecedingWeek = fetchedHistoricalWeeks[0];
+      const immediatelyPrecedingWeek = data.historicalWeeks[0];
       if (
         immediatelyPrecedingWeek &&
         immediatelyPrecedingWeek.status !== 'closed' &&

@@ -2,6 +2,54 @@ import { Person, Expense, Week, GroupSettings, Bill } from '../types';
 import { apiService, BASE_URL } from './apiService';
 
 export const storageService = {
+  // Unified fast parallel loader
+  async loadAllInitial(): Promise<{
+    members: Person[];
+    expenses: Expense[];
+    bills: Bill[];
+    weeks: Week[];
+    currentWeek: Week;
+    historicalWeeks: Week[];
+    settings: GroupSettings;
+  }> {
+    const [members, expenses, bills, weeks, settings] = await Promise.all([
+      apiService.members.getAll(true),
+      apiService.expenses.getAll(),
+      apiService.bills.getAll(),
+      apiService.weeks.getAll(),
+      apiService.settings.get()
+    ]);
+
+    let currentWeek: Week | undefined;
+    try {
+      const { getWeekInfoForDate } = await import('../utils/dateUtils');
+      const todayStr = new Date().toISOString().split('T')[0];
+      const currentWeekInfo = getWeekInfoForDate(todayStr, settings?.weekStartsOn || 'Monday');
+
+      currentWeek = weeks.find(
+        (w) => (w.startDate === currentWeekInfo.startDate && w.endDate === currentWeekInfo.endDate) || w.id === currentWeekInfo.weekId
+      );
+    } catch {}
+
+    if (!currentWeek) {
+      currentWeek = weeks.find((w) => w.status === 'active') || weeks[0] || { id: '', startDate: '', endDate: '', status: 'active' };
+    }
+
+    const historicalWeeks = weeks
+      .filter((w) => w.id !== currentWeek!.id && w.endDate < currentWeek!.startDate)
+      .sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+    return {
+      members,
+      expenses,
+      bills,
+      weeks,
+      currentWeek,
+      historicalWeeks,
+      settings
+    };
+  },
+
   // Members
   async getMembers(includeInactive = true): Promise<Person[]> {
     return apiService.members.getAll(includeInactive);

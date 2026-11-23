@@ -86,10 +86,10 @@ export const AuthModal: React.FC = () => {
               setTab('login');
               setError(null);
             }}
-            className={`py-2 text-xs font-bold rounded-lg transition-all ${
+            className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               tab === 'login'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             Sign In
@@ -100,10 +100,10 @@ export const AuthModal: React.FC = () => {
               setTab('register');
               setError(null);
             }}
-            className={`py-2 text-xs font-bold rounded-lg transition-all ${
+            className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               tab === 'register'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             Create Account

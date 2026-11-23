@@ -62,14 +62,14 @@ export const HistoryView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-slate-100 dark:bg-slate-850 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 self-start">
           <button
             onClick={() => setActiveSection('weekly-settlement')}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-all shrink-0"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-all shrink-0 cursor-pointer"
           >
             <Calendar className="w-3.5 h-3.5" />
             <span>Active Week</span>
           </button>
 
           <button
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs font-bold rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs shrink-0"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs font-bold rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs shrink-0"
           >
             <History className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
             <span>Weekly History</span>

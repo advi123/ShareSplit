@@ -114,6 +114,19 @@ function parseExpenseFromApi(e: any): Expense {
   };
 }
 
+function normalizeGroupBrief(g: any): GroupBrief {
+  return {
+    id: g.id,
+    name: g.name,
+    currency: g.currency || '₹',
+    weekStartDay: g.week_start_day || g.weekStartDay || 'Monday',
+    groupType: g.group_type || g.groupType || 'home',
+    group_type: g.group_type || g.groupType || 'home',
+    inviteCode: g.invite_code || g.inviteCode,
+    role: g.role || 'member'
+  };
+}
+
 export const apiService = {
   auth: {
     async register(data: { email: string; password: string; name: string; group_name?: string; invite_code?: string }): Promise<AuthResponse> {
@@ -128,6 +141,9 @@ export const apiService = {
         if (dataRes.active_group_id) {
           localStorage.setItem('sharesplit_active_group_id', dataRes.active_group_id);
         }
+      }
+      if (dataRes.groups) {
+        dataRes.groups = dataRes.groups.map(normalizeGroupBrief);
       }
       return dataRes;
     },
@@ -145,12 +161,19 @@ export const apiService = {
           localStorage.setItem('sharesplit_active_group_id', dataRes.active_group_id);
         }
       }
+      if (dataRes.groups) {
+        dataRes.groups = dataRes.groups.map(normalizeGroupBrief);
+      }
       return dataRes;
     },
 
     async getMe(): Promise<AuthResponse> {
       const res = await authFetch(`${BASE_URL}/auth/me`);
-      return handleResponse(res);
+      const dataRes = await handleResponse(res);
+      if (dataRes.groups) {
+        dataRes.groups = dataRes.groups.map(normalizeGroupBrief);
+      }
+      return dataRes;
     },
 
     logout() {
@@ -161,13 +184,14 @@ export const apiService = {
   },
 
   groups: {
-    async create(name: string, currency = '₹'): Promise<GroupBrief> {
+    async create(name: string, currency = '₹', groupType: 'home' | 'trip' = 'home'): Promise<GroupBrief> {
       const res = await authFetch(`${BASE_URL}/groups`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, currency })
+        body: JSON.stringify({ name, currency, group_type: groupType })
       });
-      return handleResponse(res);
+      const data = await handleResponse(res);
+      return normalizeGroupBrief(data);
     },
 
     async join(inviteCode: string): Promise<GroupBrief> {
@@ -176,7 +200,15 @@ export const apiService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ invite_code: inviteCode })
       });
-      return handleResponse(res);
+      const data = await handleResponse(res);
+      return normalizeGroupBrief(data);
+    },
+
+    async delete(groupId: string): Promise<void> {
+      const res = await authFetch(`${BASE_URL}/groups/${groupId}`, {
+        method: 'DELETE'
+      });
+      await handleResponse(res);
     }
   },
 
@@ -467,6 +499,7 @@ export const apiService = {
         weekStartsOn: s.week_starts_on,
         defaultCategory: s.default_category || 'Groceries',
         theme: localTheme,
+        groupType: s.group_type || 'home',
         geminiApiKey: s.gemini_api_key || undefined,
         inviteCode: s.invite_code || undefined
       };

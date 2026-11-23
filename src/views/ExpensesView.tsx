@@ -6,8 +6,9 @@ import { EmptyState } from '../components/common/EmptyState';
 import { ExpenseCategory } from '../types';
 
 export const ExpensesView: React.FC = () => {
-  const { expenses, members, settings, openModal, currentWeek } = useApp();
+  const { expenses, members, settings, currentGroup, openModal, currentWeek } = useApp();
 
+  const isTrip = currentGroup?.groupType === 'trip' || settings.groupType === 'trip';
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPayer, setSelectedPayer] = useState<string>('all');
@@ -18,8 +19,8 @@ export const ExpensesView: React.FC = () => {
   const currency = settings.currency;
   const activeMembers = members.filter((m) => m.isActive !== false);
 
-  // If user enters a search term or picks date range, automatically search across all expenses!
-  const isGlobalSearch = searchTerm.trim().length > 0 || startDate !== '' || endDate !== '' || viewScope === 'all';
+  // If user enters a search term or picks date range, or if it is a trip group, automatically search across all expenses!
+  const isGlobalSearch = isTrip || searchTerm.trim().length > 0 || startDate !== '' || endDate !== '' || viewScope === 'all';
   const baseExpenses = isGlobalSearch ? expenses : expenses.filter((e) => e.weekId === currentWeek.id || !e.weekId);
 
   const filteredExpenses = baseExpenses.filter((exp) => {
@@ -97,29 +98,31 @@ export const ExpensesView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Scope switch pills */}
-          <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200/60 dark:border-slate-700 text-xs font-bold">
-            <button
-              onClick={() => setViewScope('current_week')}
-              className={`px-3 py-1.5 rounded-lg transition-colors ${
-                viewScope === 'current_week' && !searchTerm && !startDate && !endDate
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Current Week
-            </button>
-            <button
-              onClick={() => setViewScope('all')}
-              className={`px-3 py-1.5 rounded-lg transition-colors ${
-                viewScope === 'all' || searchTerm || startDate || endDate
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              All History
-            </button>
-          </div>
+          {/* Scope switch pills (only for home groups) */}
+          {!isTrip && (
+            <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200/60 dark:border-slate-700 text-xs font-bold">
+              <button
+                onClick={() => setViewScope('current_week')}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  viewScope === 'current_week' && !searchTerm && !startDate && !endDate
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Current Week
+              </button>
+              <button
+                onClick={() => setViewScope('all')}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  viewScope === 'all' || searchTerm || startDate || endDate
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                All History
+              </button>
+            </div>
+          )}
 
           <button
             onClick={() => openModal('add-expense')}
@@ -163,17 +166,30 @@ export const ExpensesView: React.FC = () => {
               className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="all">All Categories</option>
-              <option value="Rent">Rent</option>
-              <option value="Groceries">Groceries</option>
-              <option value="Blinkit">Blinkit</option>
-              <option value="Food">Food</option>
-              <option value="Travel">Travel</option>
-              <option value="Electricity">Electricity</option>
-              <option value="Internet">Internet</option>
-              <option value="Household">Household</option>
-              <option value="Cleaning">Cleaning</option>
-              <option value="Entertainment">Entertainment</option>
-              <option value="Other">Other</option>
+              {isTrip ? (
+                <>
+                  <option value="Travel">Travel</option>
+                  <option value="Stay">Stay</option>
+                  <option value="Food & Drinks">Food & Drinks</option>
+                  <option value="Activities">Activities</option>
+                  <option value="Shopping">Shopping</option>
+                  <option value="Other">Other</option>
+                </>
+              ) : (
+                <>
+                  <option value="Rent">Rent</option>
+                  <option value="Groceries">Groceries</option>
+                  <option value="Blinkit">Blinkit</option>
+                  <option value="Food">Food</option>
+                  <option value="Travel">Travel</option>
+                  <option value="Electricity">Electricity</option>
+                  <option value="Internet">Internet</option>
+                  <option value="Household">Household</option>
+                  <option value="Cleaning">Cleaning</option>
+                  <option value="Entertainment">Entertainment</option>
+                  <option value="Other">Other</option>
+                </>
+              )}
             </select>
           </div>
 

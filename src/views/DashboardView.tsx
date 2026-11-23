@@ -6,10 +6,14 @@ import {
   ChevronRight,
   Receipt,
   History,
-  Key,
+  Plane,
+  Users,
+  ArrowRight,
+  Share2,
+  CheckCircle2,
   Copy,
   Check,
-  Share2
+  DollarSign
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { calculateNetBalances, simplifyDebts } from '../services/settlementEngine';
@@ -23,34 +27,83 @@ export const DashboardView: React.FC = () => {
     members,
     currentWeek,
     settings,
+    currentGroup,
     openModal,
     setActiveSection,
-    currentGroup,
     showToast
   } = useApp();
 
-  const [copiedCode, setCopiedCode] = useState(false);
-  const inviteCode = currentGroup?.inviteCode || settings.inviteCode;
-  const displayGroupName = currentGroup?.name || settings.groupName || 'Home';
-
-  const handleCopyInviteCode = () => {
-    if (inviteCode) {
-      navigator.clipboard.writeText(inviteCode);
-      setCopiedCode(true);
-      showToast(`Group invite code ${inviteCode} copied to clipboard!`, 'success');
-      setTimeout(() => setCopiedCode(false), 2000);
-    }
-  };
-
-  const handleShareWhatsApp = () => {
-    if (inviteCode) {
-      const text = `Hey! Join our "${displayGroupName}" flat expenses on ShareSplit.\n\n🔑 Invite Code: ${inviteCode}\n🌐 Open: ${window.location.origin}\n\nSign in or register and enter this code to join!`;
-      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-      window.open(url, '_blank');
-    }
-  };
-
+  const isTrip = currentGroup?.groupType === 'trip' || settings.groupType === 'trip';
   const currency = settings.currency;
+  const activeMembers = members.filter((m) => m.isActive !== false);
+  const [copiedSummary, setCopiedSummary] = useState(false);
+
+  // -------------------------------------------------------------
+  // TRIP MODE CALCULATIONS (Simple Overall Trip Expense Calculator)
+  // -------------------------------------------------------------
+  const tripExpenses = expenses;
+  const totalTripSpent = tripExpenses.reduce((sum, e) => sum + e.totalAmount, 0);
+  const perPersonShare = activeMembers.length > 0 ? totalTripSpent / activeMembers.length : 0;
+
+  const tripNetBalancesMap = calculateNetBalances(tripExpenses, members);
+  const tripNetNumeric: Record<string, number> = {};
+  Object.entries(tripNetBalancesMap).forEach(([pId, val]) => {
+    tripNetNumeric[pId] = val.netBalance;
+  });
+
+  const tripDebts = simplifyDebts(tripNetNumeric, tripExpenses, members);
+
+  const handleShareTripWhatsApp = () => {
+    const tripName = currentGroup?.name || settings.groupName || 'Trip';
+    const lines = [
+      `✈️ *Trip Settlement: ${tripName}*`,
+      `💰 *Total Spent:* ${currency}${totalTripSpent.toLocaleString('en-IN')} (${tripExpenses.length} expenses)`,
+      `👥 *Per Person Average:* ${currency}${Math.round(perPersonShare).toLocaleString('en-IN')}`,
+      '',
+      `📋 *Who Pays Whom (Settlement):*`
+    ];
+    if (tripDebts.length === 0) {
+      lines.push('🎉 All settled! Everyone is completely even.');
+    } else {
+      tripDebts.forEach((d) => {
+        const from = members.find((m) => m.id === d.from)?.name || 'Someone';
+        const to = members.find((m) => m.id === d.to)?.name || 'Someone';
+        lines.push(`• *${from}* pays *${to}*: ${currency}${d.amount.toFixed(2)}`);
+      });
+    }
+    lines.push('');
+    lines.push(`Shared via ShareSplit`);
+    const text = lines.join('\n');
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleCopyTripSummary = () => {
+    const tripName = currentGroup?.name || settings.groupName || 'Trip';
+    const lines = [
+      `✈️ Trip Settlement: ${tripName}`,
+      `Total Spent: ${currency}${totalTripSpent.toLocaleString('en-IN')}`,
+      `Per Person Average: ${currency}${Math.round(perPersonShare).toLocaleString('en-IN')}`,
+      '',
+      `Settlement:`
+    ];
+    if (tripDebts.length === 0) {
+      lines.push('All settled! Everyone is even.');
+    } else {
+      tripDebts.forEach((d) => {
+        const from = members.find((m) => m.id === d.from)?.name || 'Someone';
+        const to = members.find((m) => m.id === d.to)?.name || 'Someone';
+        lines.push(`• ${from} pays ${to}: ${currency}${d.amount.toFixed(2)}`);
+      });
+    }
+    navigator.clipboard.writeText(lines.join('\n'));
+    setCopiedSummary(true);
+    showToast('Trip settlement summary copied!', 'success');
+    setTimeout(() => setCopiedSummary(false), 2500);
+  };
+
+  // -------------------------------------------------------------
+  // HOME / FLAT MODE CALCULATIONS
+  // -------------------------------------------------------------
 
   const formatDateRange = (start: string, end: string) => {
     if (!start || !end) return 'Current Week';
@@ -96,52 +149,277 @@ export const DashboardView: React.FC = () => {
   });
   const todayTransactions = simplifyDebts(todayNetBalancesNumeric, todayExpenses, members);
 
-  return (
-    <div className="space-y-6 pb-12 animate-in fade-in duration-300">
-      {/* 0. PROMINENT ROOMMATE INVITE CODE BANNER */}
-      <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-blue-950/30 border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">
-              Flat Invite Code
-            </span>
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-              Share with roommates to join <strong className="text-slate-900 dark:text-white">{displayGroupName}</strong>
-            </span>
-          </div>
-          <div className="flex items-center gap-3 pt-1">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-emerald-500/30 shadow-2xs">
-              <Key className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span className="font-mono text-xl sm:text-2xl font-black text-slate-900 dark:text-emerald-300 tracking-wider select-all">
-                {inviteCode || 'GENERATING...'}
-              </span>
+  // -------------------------------------------------------------
+  // RENDER: STREAMLINED TRIP CALCULATOR VIEW
+  // -------------------------------------------------------------
+  if (isTrip) {
+    return (
+      <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+        {/* Trip Top Header Banner */}
+        <div className="bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 text-white rounded-3xl p-6 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-xs text-white text-[11px] font-bold">
+              <Plane className="w-3.5 h-3.5" />
+              <span>Trip Expense Calculator</span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden md:block">
-              Roommates enter this code to securely access this group
+            <h2 className="text-2xl font-black tracking-tight text-white">
+              {currentGroup?.name || settings.groupName}
+            </h2>
+            <p className="text-xs text-sky-100 font-medium">
+              Simple vacation split • {activeMembers.length} members • {tripExpenses.length} total expenses
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openModal('add-expense')}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-indigo-700 hover:bg-sky-50 font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Add Trip Expense</span>
+            </button>
+            <button
+              onClick={handleShareTripWhatsApp}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="Share Settlement on WhatsApp"
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 3-Column Quick Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-2xs space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Total Trip Spent
+            </span>
+            <div className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+              {currency}{totalTripSpent.toLocaleString('en-IN')}
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Across all {tripExpenses.length} trip expenses
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-2xs space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Average Per Person
+            </span>
+            <div className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+              {currency}{Math.round(perPersonShare).toLocaleString('en-IN')}
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Split equally among {activeMembers.length} members
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-2xs space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Transfers to Settle
+            </span>
+            <div className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+              {tripDebts.length} {tripDebts.length === 1 ? 'Transfer' : 'Transfers'}
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              {tripDebts.length === 0 ? 'Everyone is even!' : 'Minimum payments needed'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={handleCopyInviteCode}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer"
-            title="Copy invite code"
-          >
-            {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
-            <span>{copiedCode ? 'Copied!' : 'Copy Code'}</span>
-          </button>
-          <button
-            onClick={handleShareWhatsApp}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
-            title="Share invite code via WhatsApp"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-            <span>WhatsApp</span>
-          </button>
+        {/* TRIP SETTLEMENT: Who Owes Whom */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <span>Trip Settlement (Who Pays Whom)</span>
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Simplified settlement to close out all debts for this trip with minimal transfers
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopyTripSummary}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer"
+              >
+                {copiedSummary ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                <span>{copiedSummary ? 'Copied' : 'Copy Split'}</span>
+              </button>
+
+              <button
+                onClick={handleShareTripWhatsApp}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Share WhatsApp</span>
+              </button>
+            </div>
+          </div>
+
+          {tripDebts.length === 0 ? (
+            <div className="py-8 text-center space-y-2 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/60">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+              <div className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                All Settled Up!
+              </div>
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 max-w-sm mx-auto">
+                No debts remain for this trip. Everyone is completely even.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {tripDebts.map((debt, idx) => {
+                const fromMem = members.find((m) => m.id === debt.from);
+                const toMem = members.find((m) => m.id === debt.to);
+                return (
+                  <div
+                    key={`${debt.from}-${debt.to}-${idx}`}
+                    className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850/60 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold text-xs flex items-center justify-center shrink-0">
+                        {fromMem?.name.slice(0, 1) || '?'}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block truncate">
+                          {fromMem?.name || 'Unknown'}
+                        </span>
+                        <span className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold uppercase">
+                          Owes
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-center px-2 shrink-0">
+                      <span className="text-sm font-black text-slate-900 dark:text-white">
+                        {currency}{debt.amount.toFixed(2)}
+                      </span>
+                      <ArrowRight className="w-4 h-4 text-slate-400 my-0.5" />
+                    </div>
+
+                    <div className="flex items-center gap-2.5 min-w-0 text-right justify-end">
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block truncate">
+                          {toMem?.name || 'Unknown'}
+                        </span>
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase">
+                          Gets back
+                        </span>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-xs flex items-center justify-center shrink-0">
+                        {toMem?.name.slice(0, 1) || '?'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* WHO PAID WHAT & NET POSITIONS */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-3">
+            Member Positions on this Trip
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {activeMembers.map((mem) => {
+              const pos = tripNetBalancesMap[mem.id] || { totalPaid: 0, totalShare: 0, netBalance: 0 };
+              const isPositive = pos.netBalance > 0.01;
+              const isNegative = pos.netBalance < -0.01;
+
+              return (
+                <div
+                  key={mem.id}
+                  className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-850 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center">
+                        {mem.name.slice(0, 1)}
+                      </div>
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        {mem.name}
+                      </span>
+                    </div>
+
+                    <span
+                      className={`text-xs font-black ${
+                        isPositive
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : isNegative
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      {isPositive ? `+${currency}${pos.netBalance.toFixed(2)}` : isNegative ? `-${currency}${Math.abs(pos.netBalance).toFixed(2)}` : 'Even'}
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span>Paid: {currency}{pos.totalPaid.toFixed(2)}</span>
+                    <span>Share: {currency}{pos.totalShare.toFixed(2)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* TRIP EXPENSES LIST */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Trip Expenses ({tripExpenses.length})
+            </h3>
+            <button
+              onClick={() => openModal('add-expense')}
+              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+            >
+              + Add Expense
+            </button>
+          </div>
+
+          {tripExpenses.length === 0 ? (
+            <div className="p-8 text-center rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/60 dark:border-slate-800">
+              <Receipt className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                No expenses added yet for this trip.
+              </p>
+              <button
+                onClick={() => openModal('add-expense')}
+                className="mt-3 px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
+              >
+                Add First Trip Expense
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {tripExpenses.map((exp) => (
+                <ExpenseCard
+                  key={exp.id}
+                  expense={exp}
+                  members={members}
+                  currency={currency}
+                  onClick={() => openModal('expense-detail', exp)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
+    );
+  }
 
+  // -------------------------------------------------------------
+  // RENDER: STANDARD HOME / FLAT DASHBOARD VIEW
+  // -------------------------------------------------------------
+  return (
+    <div className="space-y-8 pb-12 animate-in fade-in duration-300">
       {/* 1. TOP SUMMARY CARDS */}
       <div className="grid grid-cols-1 gap-4">
         {/* Total Spent */}

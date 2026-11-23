@@ -21,8 +21,9 @@ interface AppContextType {
   register: (email: string, password: string, name: string, groupName?: string, inviteCode?: string) => Promise<void>;
   logout: () => void;
   switchGroup: (groupId: string) => Promise<void>;
-  createNewGroup: (name: string, currency?: string) => Promise<void>;
+  createNewGroup: (name: string, currency?: string, groupType?: 'home' | 'trip') => Promise<void>;
   joinGroupWithCode: (inviteCode: string) => Promise<void>;
+  deleteGroup: (groupId: string) => Promise<void>;
 
   // Data
   expenses: Expense[];
@@ -237,12 +238,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await loadAllData();
   };
 
-  const createNewGroup = async (name: string, currency = '₹') => {
-    const newGrp = await apiService.groups.create(name, currency);
+  const createNewGroup = async (name: string, currency = '₹', groupType: 'home' | 'trip' = 'home') => {
+    const newGrp = await apiService.groups.create(name, currency, groupType);
     setUserGroups((prev) => [...prev, newGrp]);
     await switchGroup(newGrp.id);
     closeModal();
-    showToast(`Created group "${name}"! Code: ${newGrp.inviteCode}`, 'success');
+    const typeLabel = groupType === 'trip' ? 'Trip' : 'Flat';
+    showToast(`Created ${typeLabel} "${name}"! Code: ${newGrp.inviteCode}`, 'success');
+  };
+
+  const deleteGroup = async (groupId: string) => {
+    await apiService.groups.delete(groupId);
+    const remaining = userGroups.filter((g) => g.id !== groupId);
+    setUserGroups(remaining);
+    showToast('Group deleted successfully', 'info');
+    if (activeGroupId === groupId) {
+      const nextGroup = remaining[0];
+      if (nextGroup) {
+        await switchGroup(nextGroup.id);
+      } else {
+        await switchGroup('default-group');
+      }
+    }
   };
 
   const joinGroupWithCode = async (inviteCode: string) => {
@@ -542,6 +559,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         switchGroup,
         createNewGroup,
         joinGroupWithCode,
+        deleteGroup,
         loadAllData,
         expenses,
         members,

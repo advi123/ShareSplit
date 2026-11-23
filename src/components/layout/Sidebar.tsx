@@ -15,9 +15,11 @@ import { useApp } from '../../context/AppContext';
 import { NavSection } from '../../types';
 
 export const Sidebar: React.FC = () => {
-  const { activeSection, setActiveSection, openModal, settings } = useApp();
+  const { activeSection, setActiveSection, openModal, settings, currentGroup } = useApp();
 
-  const navItems: Array<{ id: NavSection; label: string; icon: React.ReactNode }> = [
+  const isTrip = currentGroup?.groupType === 'trip' || settings.groupType === 'trip';
+
+  const homeNavItems: Array<{ id: NavSection; label: string; icon: React.ReactNode }> = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'expenses', label: 'Expenses', icon: <Receipt className="w-4 h-4" /> },
     { id: 'bills', label: 'Bills Archive', icon: <FileText className="w-4 h-4" /> },
@@ -28,20 +30,30 @@ export const Sidebar: React.FC = () => {
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> }
   ];
 
+  const tripNavItems: Array<{ id: NavSection; label: string; icon: React.ReactNode }> = [
+    { id: 'dashboard', label: 'Trip Overview', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'expenses', label: 'Expenses', icon: <Receipt className="w-4 h-4" /> },
+    { id: 'members', label: 'Trip Members', icon: <Users className="w-4 h-4" /> },
+    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> }
+  ];
+
+  const navItems = isTrip ? tripNavItems : homeNavItems;
+
   return (
     <aside className="hidden lg:flex flex-col w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 min-h-screen shrink-0 sticky top-0 h-screen z-20">
       {/* Brand Header */}
       <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center font-extrabold text-lg shadow-sm">
-            S
+            {isTrip ? '✈' : 'S'}
           </div>
           <div>
             <h1 className="font-bold text-base tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
               ShareSplit
             </h1>
-            <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              Group: {settings.groupName}
+            <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <span>{isTrip ? 'Trip:' : 'Flat:'}</span>
+              <span className="truncate max-w-[120px]">{currentGroup?.name || settings.groupName}</span>
             </p>
           </div>
         </div>
@@ -51,18 +63,20 @@ export const Sidebar: React.FC = () => {
       <div className="p-4 space-y-2">
         <button
           onClick={() => openModal('add-expense')}
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-900 dark:text-slate-100 font-semibold text-xs rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs transition-all active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-xs transition-all active:scale-[0.98] cursor-pointer"
         >
-          <PlusCircle className="w-4 h-4 text-slate-700 dark:text-slate-300" />
-          <span>Add Expense</span>
+          <PlusCircle className="w-4 h-4" />
+          <span>{isTrip ? 'Add Trip Expense' : 'Add Expense'}</span>
         </button>
-        <button
-          onClick={() => openModal('upload-bill')}
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-xl border border-slate-200/80 dark:border-slate-800 transition-all"
-        >
-          <Upload className="w-4 h-4 text-slate-500" />
-          <span>Upload Bill</span>
-        </button>
+        {!isTrip && (
+          <button
+            onClick={() => openModal('upload-bill')}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-xl border border-slate-200/80 dark:border-slate-800 transition-all cursor-pointer"
+          >
+            <Upload className="w-4 h-4 text-slate-500" />
+            <span>Upload Bill</span>
+          </button>
+        )}
       </div>
 
       {/* Navigation List */}

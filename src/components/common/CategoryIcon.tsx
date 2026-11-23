@@ -10,7 +10,9 @@ import {
   Sparkles,
   Sofa,
   Tv,
-  Tag
+  Tag,
+  Hotel,
+  Compass
 } from 'lucide-react';
 import { ExpenseCategory } from '../../types';
 
@@ -23,14 +25,21 @@ export const CategoryIcon: React.FC<Props> = ({ category, className = 'w-5 h-5' 
   switch (category) {
     case 'Rent':
       return <Home className={className} />;
+    case 'Stay':
+      return <Hotel className={className} />;
     case 'Groceries':
       return <ShoppingCart className={className} />;
     case 'Blinkit':
       return <ShoppingBag className={className} />;
     case 'Food':
+    case 'Food & Drinks':
       return <Utensils className={className} />;
     case 'Travel':
       return <Car className={className} />;
+    case 'Activities':
+      return <Compass className={className} />;
+    case 'Shopping':
+      return <ShoppingBag className={className} />;
     case 'Electricity':
       return <Zap className={className} />;
     case 'Internet':
@@ -51,14 +60,21 @@ export const getCategoryBgColor = (category: ExpenseCategory): string => {
   switch (category) {
     case 'Rent':
       return 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300';
+    case 'Stay':
+      return 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300';
     case 'Groceries':
       return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300';
     case 'Blinkit':
       return 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300';
     case 'Food':
+    case 'Food & Drinks':
       return 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300';
     case 'Travel':
       return 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300';
+    case 'Activities':
+      return 'bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300';
+    case 'Shopping':
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300';
     case 'Electricity':
       return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/60 dark:text-yellow-300';
     case 'Internet':

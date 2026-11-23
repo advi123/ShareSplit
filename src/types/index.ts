@@ -4,6 +4,10 @@ export type ExpenseCategory =
   | 'Blinkit'
   | 'Food'
   | 'Travel'
+  | 'Stay'
+  | 'Food & Drinks'
+  | 'Activities'
+  | 'Shopping'
   | 'Electricity'
   | 'Internet'
   | 'Household'
@@ -95,6 +99,7 @@ export interface GroupSettings {
   weekStartsOn: 'Monday' | 'Sunday';
   defaultCategory: ExpenseCategory;
   theme: 'light' | 'dark' | 'system';
+  groupType?: 'home' | 'trip';
   geminiApiKey?: string;
   inviteCode?: string;
 }
@@ -122,6 +127,8 @@ export interface GroupBrief {
   name: string;
   currency: string;
   weekStartDay: string;
+  group_type?: 'home' | 'trip';
+  groupType?: 'home' | 'trip';
   inviteCode?: string;
   role: string;
 }

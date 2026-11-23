@@ -5,7 +5,7 @@ import { useApp } from '../../context/AppContext';
 import { ExpenseCategory, ItemizedExpenseItem, Expense } from '../../types';
 import { getTodayStr } from '../../utils/dateUtils';
 
-const CATEGORIES: ExpenseCategory[] = [
+const HOME_CATEGORIES: ExpenseCategory[] = [
   'Rent',
   'Groceries',
   'Blinkit',
@@ -19,11 +19,33 @@ const CATEGORIES: ExpenseCategory[] = [
   'Other'
 ];
 
+const TRIP_CATEGORIES: ExpenseCategory[] = [
+  'Travel',
+  'Stay',
+  'Food & Drinks',
+  'Activities',
+  'Shopping',
+  'Other'
+];
+
 export const AddExpenseModal: React.FC = () => {
-  const { activeModal, closeModal, members, settings, addOrUpdateExpense, openModal, showToast, selectedExpense } = useApp();
+  const {
+    activeModal,
+    closeModal,
+    members,
+    settings,
+    currentGroup,
+    addOrUpdateExpense,
+    openModal,
+    showToast,
+    selectedExpense
+  } = useApp();
+
+  const isTrip = currentGroup?.groupType === 'trip' || settings.groupType === 'trip';
+  const categoriesList = isTrip ? TRIP_CATEGORIES : HOME_CATEGORIES;
 
   const isEditing = activeModal === 'edit-expense';
-  const [mode, setMode] = useState<'launcher' | 'manual'>('launcher');
+  const [mode, setMode] = useState<'launcher' | 'manual'>(isTrip ? 'manual' : 'launcher');
   const [activeTab, setActiveTab] = useState<'simple' | 'itemized'>('simple');
 
   const activeMembers = members.filter((m) => m.isActive !== false);
@@ -31,7 +53,7 @@ export const AddExpenseModal: React.FC = () => {
 
   // Manual expense fields
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<ExpenseCategory>(settings.defaultCategory);
+  const [category, setCategory] = useState<ExpenseCategory>(isTrip ? 'Travel' : settings.defaultCategory);
   const [totalAmount, setTotalAmount] = useState<string>('');
   const [paidBy, setPaidBy] = useState<string>('');
   const [payerMode, setPayerMode] = useState<'single' | 'multiple'>('single');
@@ -56,11 +78,11 @@ export const AddExpenseModal: React.FC = () => {
 
   useEffect(() => {
     if (activeModal === 'add-expense') {
-      setMode('launcher');
+      setMode(isTrip ? 'manual' : 'launcher');
       setActiveTab('simple');
       setExpenseDate(todayStr);
       setIsSettled(false);
-      setCategory(settings.defaultCategory);
+      setCategory(isTrip ? 'Travel' : settings.defaultCategory);
 
       const youMember = activeMembers.find((m) => m.isYou) || activeMembers[0];
       const defaultPayerId = youMember ? youMember.id : activeMembers[0]?.id || '';
@@ -462,7 +484,7 @@ export const AddExpenseModal: React.FC = () => {
                       onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900"
                     >
-                      {CATEGORIES.map((cat) => (
+                      {categoriesList.map((cat) => (
                         <option key={cat} value={cat}>
                           {cat}
                         </option>

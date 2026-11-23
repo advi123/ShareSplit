@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Calendar, AlertCircle, ArrowRight, Info, CheckCircle2, Share2 } from 'lucide-react';
+import { Calendar, AlertCircle, ArrowRight, Info, CheckCircle2, Share2, Download } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { calculateNetBalances, simplifyDebts } from '../../services/settlementEngine';
 import { getTodayStr } from '../../utils/dateUtils';
-import { shareOrDownloadReceipt } from '../../utils/shareSettlementReceipt';
+import { shareOrDownloadReceipt, downloadReceiptImage } from '../../utils/shareSettlementReceipt';
 
 export const CustomSettlementCard: React.FC = () => {
   const { expenses, members, settings, currentWeek, showToast } = useApp();
@@ -11,6 +11,7 @@ export const CustomSettlementCard: React.FC = () => {
   const [fromDate, setFromDate] = useState<string>(currentWeek.startDate);
   const [toDate, setToDate] = useState<string>(currentWeek.endDate);
   const [isSharing, setIsSharing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const currency = settings.currency;
 
@@ -235,7 +236,7 @@ export const CustomSettlementCard: React.FC = () => {
               </div>
             )}
 
-            <div className="pt-4 border-t border-slate-800 flex justify-end">
+            <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-end gap-2">
               <button
                 onClick={async () => {
                   setIsSharing(true);
@@ -259,11 +260,43 @@ export const CustomSettlementCard: React.FC = () => {
                   );
                   setIsSharing(false);
                 }}
-                disabled={isSharing}
-                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
+                disabled={isSharing || isDownloading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
+                title="Share receipt image directly to WhatsApp or contacts"
               >
                 <Share2 className="w-4 h-4" />
-                <span>{isSharing ? 'Generating Receipt...' : 'Share Receipt (Image)'}</span>
+                <span>{isSharing ? 'Opening...' : 'Share Image'}</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  setIsDownloading(true);
+                  const txs = simplifiedTransactions.map((tx) => {
+                    const debtor = members.find((m) => m.id === tx.from);
+                    const creditor = members.find((m) => m.id === tx.to);
+                    return {
+                      fromName: debtor ? debtor.name : 'Unknown',
+                      toName: creditor ? creditor.name : 'Unknown',
+                      amount: tx.amount
+                    };
+                  });
+                  await downloadReceiptImage(
+                    {
+                      title: 'Net Settlement Report',
+                      dateRange: `${fromDate} to ${toDate}`,
+                      currency,
+                      transactions: txs
+                    },
+                    showToast
+                  );
+                  setIsDownloading(false);
+                }}
+                disabled={isSharing || isDownloading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 shadow-md transition-all active:scale-95 disabled:opacity-50"
+                title="Download receipt JPG directly"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+                <span>{isDownloading ? 'Saving...' : 'Download JPG'}</span>
               </button>
             </div>
           </div>

@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { Archive, Calendar, ShieldCheck, CheckCircle2, Plus, Sliders, History, Share2 } from 'lucide-react';
+import { Archive, Calendar, ShieldCheck, CheckCircle2, Plus, Sliders, History, Share2, Download } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { calculateNetBalances, simplifyDebts } from '../services/settlementEngine';
 import { SettlementTransactionCard } from '../components/settlement/SettlementTransactionCard';
 import { CustomSettlementCard } from '../components/settlement/CustomSettlementCard';
 import { EmptyState } from '../components/common/EmptyState';
-import { shareOrDownloadReceipt } from '../utils/shareSettlementReceipt';
+import { shareOrDownloadReceipt, downloadReceiptImage } from '../utils/shareSettlementReceipt';
 
 export const WeeklySettlementView: React.FC = () => {
   const { expenses, members, currentWeek, settings, openModal, setActiveSection, showToast } = useApp();
 
   const [activeTab, setActiveTab] = useState<'weekly' | 'custom'>('weekly');
   const [isSharing, setIsSharing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const currency = settings.currency;
   const weekExpenses = expenses.filter((e) => e.weekId === currentWeek.id || !e.weekId);
@@ -48,6 +49,30 @@ export const WeeklySettlementView: React.FC = () => {
       showToast
     );
     setIsSharing(false);
+  };
+
+  const handleDownloadReceipt = async () => {
+    setIsDownloading(true);
+    const txs = finalSimplifiedTransactions.map((tx) => {
+      const debtor = members.find((m) => m.id === tx.from);
+      const creditor = members.find((m) => m.id === tx.to);
+      return {
+        fromName: debtor ? debtor.name : 'Unknown',
+        toName: creditor ? creditor.name : 'Unknown',
+        amount: tx.amount
+      };
+    });
+
+    await downloadReceiptImage(
+      {
+        title: 'Weekly Net Settlement',
+        dateRange: `${currentWeek.startDate} to ${currentWeek.endDate}`,
+        currency,
+        transactions: txs
+      },
+      showToast
+    );
+    setIsDownloading(false);
   };
 
   return (
@@ -288,14 +313,27 @@ export const WeeklySettlementView: React.FC = () => {
                 )}
 
                 <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                  <button
-                    onClick={handleShareReceipt}
-                    disabled={isSharing}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    <span>{isSharing ? 'Generating Receipt...' : 'Share Receipt (Image)'}</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={handleShareReceipt}
+                      disabled={isSharing || isDownloading}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
+                      title="Share receipt image directly to WhatsApp or contacts"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      <span>{isSharing ? 'Opening...' : 'Share Image'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleDownloadReceipt}
+                      disabled={isSharing || isDownloading}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 shadow-md transition-all active:scale-95 disabled:opacity-50"
+                      title="Download receipt JPG directly"
+                    >
+                      <Download className="w-4 h-4 text-emerald-400" />
+                      <span>{isDownloading ? 'Saving...' : 'Download JPG'}</span>
+                    </button>
+                  </div>
 
                   <button
                     onClick={() => openModal('close-week')}

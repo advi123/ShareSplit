@@ -2,27 +2,29 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.core.database import get_db
+from app.core.auth_dependency import get_active_group_id
 from app.schemas.week import Week
 import app.repositories.week_repository as week_repo
 import app.repositories.expense_repository as expense_repo
 import app.services.week_service as week_service
 import app.services.expense_service as expense_service
 import app.services.settlement_service as settlement_service
-import app.services.group_service as group_service
 
 router = APIRouter(prefix="/weeks", tags=["weeks"])
 
 @router.get("", response_model=list[Week])
-def read_weeks(db: Session = Depends(get_db)):
-    group = group_service.get_or_create_default_group(db)
+def read_weeks(
+    group_id: str = Depends(get_active_group_id),
+    db: Session = Depends(get_db)
+):
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    current_week = week_service.get_or_create_week(db, group.id, today)
+    current_week = week_service.get_or_create_week(db, group_id, today)
     
-    weeks = week_repo.get_weeks(db, group.id)
+    weeks = week_repo.get_weeks(db, group_id)
 
     enriched_weeks = []
     for w in weeks:
-        expenses = expense_repo.get_expenses(db, group.id, week_id=w.id)
+        expenses = expense_repo.get_expenses(db, group_id, week_id=w.id)
         total_spent = sum(e.total_amount for e in expenses)
         enriched_weeks.append(
             Week(
@@ -48,47 +50,27 @@ def read_week_details(week_id: str, db: Session = Depends(get_db)):
     expenses_response = [expense_service.build_expense_response(db, e) for e in raw_expenses]
     
     settlement = settlement_service.calculate_settlement_range(
-        db, 
-        db_week.group_id, 
-        db_week.start_date, 
-        db_week.end_date
+        db, db_week.group_id, db_week.start_date, db_week.end_date
     )
     
     return {
-        "id": db_week.id,
-        "start_date": db_week.start_date,
-        "end_date": db_week.end_date,
-        "status": db_week.status,
-        "closed_at": db_week.closed_at,
+        "week": db_week,
         "expenses": expenses_response,
-        "members": settlement.members,
-        "settlement": settlement.settlement
+        "settlement": settlement
     }
 
 @router.post("/{week_id}/close")
 def close_week(week_id: str, db: Session = Depends(get_db)):
-    week = week_repo.get_week(db, week_id)
-    if not week:
+    db_week = week_repo.get_week(db, week_id)
+    if not db_week:
         raise HTTPException(status_code=404, detail="Week not found")
-        
-    settlement = settlement_service.calculate_settlement_range(
-        db,
-        week.group_id,
-        week.start_date,
-        week.end_date
-    )
-    
-    week_service.close_week(db, week_id)
-    
-    return {
-        "id": week_id,
-        "status": "closed",
-        "settlement": settlement
-    }
+    closed = week_service.close_week(db, db_week.group_id, week_id)
+    return {"status": "success", "message": f"Week {week_id} closed", "week": closed}
 
 @router.post("/{week_id}/reopen")
 def reopen_week(week_id: str, db: Session = Depends(get_db)):
-    week = week_service.reopen_week(db, week_id)
-    if not week:
+    db_week = week_repo.get_week(db, week_id)
+    if not db_week:
         raise HTTPException(status_code=404, detail="Week not found")
-    return {"id": week_id, "status": "active"}
+    reopened = week_service.reopen_week(db, db_week.group_id, week_id)
+    return {"status": "success", "message": f"Week {week_id} reopened", "week": reopened}

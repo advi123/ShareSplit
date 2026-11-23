@@ -4,9 +4,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api import groups, members, expenses, bills, weeks, settlements, settings as settings_api
+from app.api import groups, members, expenses, bills, weeks, settlements, settings as settings_api, auth
 import app.services.group_service as group_service
 from app.core.database import SessionLocal
+from app.core.security import generate_invite_code
+
+# Ensure all models are registered with Base.metadata
+from app.models.user import User, UserGroup
+from app.models.group import Group
+from app.models.member import Member
+from app.models.expense import Expense
+from app.models.expense_item import ExpenseItem
+from app.models.bill import Bill
+from app.models.week import Week
 
 app = FastAPI(
     title="ShareSplit API",
@@ -20,6 +30,8 @@ origins = [
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://sharesplit.vercel.app",
+    "https://share-split-one.vercel.app"
 ]
 
 app.add_middleware(
@@ -34,6 +46,7 @@ app.add_middleware(
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
+app.include_router(auth.router, prefix="/api")
 app.include_router(groups.router, prefix="/api")
 app.include_router(members.router, prefix="/api")
 app.include_router(expenses.router, prefix="/api")
@@ -48,6 +61,10 @@ def startup_event():
     db = SessionLocal()
     try:
         group = group_service.get_or_create_default_group(db)
+        if not group.invite_code:
+            group.invite_code = generate_invite_code("HOME")
+            db.commit()
+
         import app.repositories.member_repository as member_repo
         from app.schemas.member import MemberCreate
         members = member_repo.get_members(db, group.id, include_inactive=True)

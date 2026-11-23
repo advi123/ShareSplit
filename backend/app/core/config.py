@@ -9,6 +9,11 @@ class Settings:
     FRONTEND_ORIGIN: str = os.getenv("FRONTEND_ORIGIN", "http://127.0.0.1:3000")
     API_HOST: str = os.getenv("API_HOST", "127.0.0.1")
     API_PORT: int = int(os.getenv("API_PORT", "8000"))
+    
+    # JWT Auth Configuration
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "sharesplit-secret-jwt-key-2026-prod-enc-split-auth-secure")
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200")) # 30 days default session
 
 settings = Settings()
 

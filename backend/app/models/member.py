@@ -8,6 +8,7 @@ class Member(Base):
 
     id = Column(String, primary_key=True, index=True)
     group_id = Column(String, ForeignKey("groups.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     name = Column(String, nullable=False)
     nickname = Column(String, nullable=True)
     avatar = Column(String, nullable=True)

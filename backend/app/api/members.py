@@ -2,26 +2,29 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 import uuid
 from app.core.database import get_db
+from app.core.auth_dependency import get_active_group_id
 from app.schemas.member import Member, MemberCreate, MemberUpdate, MemberDetail
 import app.repositories.member_repository as member_repo
 import app.services.member_service as member_service
-import app.services.group_service as group_service
 
 router = APIRouter(prefix="/members", tags=["members"])
 
 @router.get("", response_model=list[Member])
 def read_members(
     include_inactive: bool = Query(False),
+    group_id: str = Depends(get_active_group_id),
     db: Session = Depends(get_db)
 ):
-    group = group_service.get_or_create_default_group(db)
-    return member_repo.get_members(db, group.id, include_inactive=include_inactive)
+    return member_repo.get_members(db, group_id, include_inactive=include_inactive)
 
 @router.post("", response_model=Member)
-def create_member(member_in: MemberCreate, db: Session = Depends(get_db)):
-    group = group_service.get_or_create_default_group(db)
+def create_member(
+    member_in: MemberCreate,
+    group_id: str = Depends(get_active_group_id),
+    db: Session = Depends(get_db)
+):
     member_id = f"mem-{uuid.uuid4().hex[:8]}"
-    return member_repo.create_member(db, group.id, member_id, member_in)
+    return member_repo.create_member(db, group_id, member_id, member_in)
 
 @router.get("/{member_id}", response_model=MemberDetail)
 def read_member(member_id: str, db: Session = Depends(get_db)):

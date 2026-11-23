@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.auth_dependency import get_active_group_id
 from app.schemas.settlement import SettlementResponse
 import app.services.settlement_service as settlement_service
-import app.services.group_service as group_service
 import app.repositories.week_repository as week_repo
 
 router = APIRouter(prefix="/settlements", tags=["settlements"])
@@ -11,10 +11,10 @@ router = APIRouter(prefix="/settlements", tags=["settlements"])
 @router.get("/daily", response_model=SettlementResponse)
 def get_daily_settlement(
     date: str = Query(...),
+    group_id: str = Depends(get_active_group_id),
     db: Session = Depends(get_db)
 ):
-    group = group_service.get_or_create_default_group(db)
-    return settlement_service.calculate_settlement_range(db, group.id, date, date)
+    return settlement_service.calculate_settlement_range(db, group_id, date, date)
 
 @router.get("/weekly/{week_id}", response_model=SettlementResponse)
 def get_weekly_settlement(
@@ -30,10 +30,10 @@ def get_weekly_settlement(
 def get_custom_settlement(
     from_date: str = Query(...),
     to_date: str = Query(...),
+    group_id: str = Depends(get_active_group_id),
     db: Session = Depends(get_db)
 ):
     if from_date > to_date:
         raise HTTPException(status_code=400, detail="From Date must be less than or equal to To Date.")
         
-    group = group_service.get_or_create_default_group(db)
-    return settlement_service.calculate_settlement_range(db, group.id, from_date, to_date)
+    return settlement_service.calculate_settlement_range(db, group_id, from_date, to_date)

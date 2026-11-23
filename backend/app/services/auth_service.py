@@ -1,0 +1,295 @@
+import uuid
+from datetime import datetime
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+from app.models.user import User, UserGroup
+from app.models.group import Group
+from app.models.member import Member
+from app.schemas.user import UserRegister, UserLogin, AuthResponse, UserResponse, GroupBrief, GroupCreate
+from app.core.security import hash_password, verify_password, create_access_token, generate_invite_code
+
+def _build_auth_response(db: Session, user: User) -> AuthResponse:
+    """Helper to assemble AuthResponse containing user, their groups, and access token."""
+    user_groups = (
+        db.query(UserGroup, Group)
+        .join(Group, UserGroup.group_id == Group.id)
+        .filter(UserGroup.user_id == user.id, UserGroup.is_active == True)
+        .all()
+    )
+
+    groups_list: list[GroupBrief] = []
+    for ug, grp in user_groups:
+        groups_list.append(
+            GroupBrief(
+                id=grp.id,
+                name=grp.name,
+                currency=grp.currency or "₹",
+                week_start_day=grp.week_start_day or "Monday",
+                invite_code=grp.invite_code,
+                role=ug.role
+            )
+        )
+
+    # If user has no group (e.g. fresh registration without group), auto-create or assign default
+    if not groups_list:
+        default_grp = db.query(Group).filter(Group.id == "default-group").first()
+        if not default_grp:
+            default_grp = Group(
+                id="default-group",
+                name="Home",
+                currency="₹",
+                week_start_day="Monday",
+                invite_code=generate_invite_code("HOME")
+            )
+            db.add(default_grp)
+            db.commit()
+            db.refresh(default_grp)
+        
+        ug = UserGroup(
+            id=f"ug-{uuid.uuid4().hex[:8]}",
+            user_id=user.id,
+            group_id=default_grp.id,
+            role="admin"
+        )
+        db.add(ug)
+        db.commit()
+
+        groups_list.append(
+            GroupBrief(
+                id=default_grp.id,
+                name=default_grp.name,
+                currency=default_grp.currency or "₹",
+                week_start_day=default_grp.week_start_day or "Monday",
+                invite_code=default_grp.invite_code,
+                role="admin"
+            )
+        )
+
+    active_group_id = groups_list[0].id
+
+    token = create_access_token({
+        "sub": user.id,
+        "email": user.email,
+        "name": user.name
+    })
+
+    return AuthResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.model_validate(user),
+        groups=groups_list,
+        active_group_id=active_group_id
+    )
+
+def register_user(db: Session, reg: UserRegister) -> AuthResponse:
+    clean_email = reg.email.strip().lower()
+    
+    # 1. Check if user already exists
+    existing = db.query(User).filter(User.email == clean_email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email already exists. Please log in."
+        )
+
+    # 2. Create User
+    new_user = User(
+        id=f"usr-{uuid.uuid4().hex[:8]}",
+        email=clean_email,
+        hashed_password=hash_password(reg.password),
+        name=reg.name.strip(),
+        is_active=True
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    # 3. Handle Group Creation or Joining
+    target_group: Group | None = None
+    role = "admin"
+
+    if reg.invite_code:
+        # Join by invite code
+        clean_code = reg.invite_code.strip().upper()
+        target_group = db.query(Group).filter(Group.invite_code == clean_code).first()
+        if not target_group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Invite code '{clean_code}' is invalid. Please check with your roommates."
+            )
+        role = "member"
+    else:
+        # Create fresh group
+        grp_name = reg.group_name.strip() if reg.group_name else f"{reg.name}'s Flat"
+        group_id = f"grp-{uuid.uuid4().hex[:8]}"
+        target_group = Group(
+            id=group_id,
+            name=grp_name,
+            currency="₹",
+            week_start_day="Monday",
+            invite_code=generate_invite_code("SPLIT"),
+            created_by=new_user.id
+        )
+        db.add(target_group)
+        db.commit()
+        db.refresh(target_group)
+
+    # Link user to group
+    ug = UserGroup(
+        id=f"ug-{uuid.uuid4().hex[:8]}",
+        user_id=new_user.id,
+        group_id=target_group.id,
+        role=role
+    )
+    db.add(ug)
+
+    # Also create/link a Member record in the group
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    member_record = Member(
+        id=f"mem-{uuid.uuid4().hex[:8]}",
+        group_id=target_group.id,
+        user_id=new_user.id,
+        name=new_user.name,
+        joined_at=today_str,
+        is_active=True,
+        color="bg-emerald-600"
+    )
+    db.add(member_record)
+    db.commit()
+
+    return _build_auth_response(db, new_user)
+
+def login_user(db: Session, creds: UserLogin) -> AuthResponse:
+    clean_email = creds.email.strip().lower()
+    user = db.query(User).filter(User.email == clean_email).first()
+    
+    if not user or not verify_password(creds.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password. Please try again."
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been deactivated."
+        )
+
+    return _build_auth_response(db, user)
+
+def get_current_user_profile(db: Session, user: User) -> AuthResponse:
+    return _build_auth_response(db, user)
+
+def create_group_for_user(db: Session, user: User, grp_in: GroupCreate) -> GroupBrief:
+    group_id = f"grp-{uuid.uuid4().hex[:8]}"
+    new_group = Group(
+        id=group_id,
+        name=grp_in.name.strip(),
+        currency=grp_in.currency or "₹",
+        week_start_day=grp_in.week_start_day or "Monday",
+        invite_code=generate_invite_code("SPLIT"),
+        created_by=user.id
+    )
+    db.add(new_group)
+    db.commit()
+    db.refresh(new_group)
+
+    ug = UserGroup(
+        id=f"ug-{uuid.uuid4().hex[:8]}",
+        user_id=user.id,
+        group_id=new_group.id,
+        role="admin"
+    )
+    db.add(ug)
+
+    # Create Member entry for this user in their new group
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    member_record = Member(
+        id=f"mem-{uuid.uuid4().hex[:8]}",
+        group_id=new_group.id,
+        user_id=user.id,
+        name=user.name,
+        joined_at=today_str,
+        is_active=True,
+        color="bg-emerald-600"
+    )
+    db.add(member_record)
+    db.commit()
+
+    return GroupBrief(
+        id=new_group.id,
+        name=new_group.name,
+        currency=new_group.currency or "₹",
+        week_start_day=new_group.week_start_day or "Monday",
+        invite_code=new_group.invite_code,
+        role="admin"
+    )
+
+def join_group_with_code(db: Session, user: User, invite_code: str) -> GroupBrief:
+    clean_code = invite_code.strip().upper()
+    group = db.query(Group).filter(Group.invite_code == clean_code).first()
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Invite code '{clean_code}' is invalid. Please double check with your group members."
+        )
+
+    # Check if user is already a member
+    existing_ug = db.query(UserGroup).filter(
+        UserGroup.user_id == user.id,
+        UserGroup.group_id == group.id
+    ).first()
+
+    if existing_ug:
+        if not existing_ug.is_active:
+            existing_ug.is_active = True
+            db.commit()
+        return GroupBrief(
+            id=group.id,
+            name=group.name,
+            currency=group.currency or "₹",
+            week_start_day=group.week_start_day or "Monday",
+            invite_code=group.invite_code,
+            role=existing_ug.role
+        )
+
+    # Add to group
+    ug = UserGroup(
+        id=f"ug-{uuid.uuid4().hex[:8]}",
+        user_id=user.id,
+        group_id=group.id,
+        role="member"
+    )
+    db.add(ug)
+
+    # Check if a Member with user's name already exists in this group (e.g. added before user signed up)
+    existing_member = db.query(Member).filter(
+        Member.group_id == group.id,
+        Member.name.ilike(user.name)
+    ).first()
+
+    if existing_member:
+        existing_member.user_id = user.id
+    else:
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        new_member = Member(
+            id=f"mem-{uuid.uuid4().hex[:8]}",
+            group_id=group.id,
+            user_id=user.id,
+            name=user.name,
+            joined_at=today_str,
+            is_active=True,
+            color="bg-indigo-600"
+        )
+        db.add(new_member)
+
+    db.commit()
+
+    return GroupBrief(
+        id=group.id,
+        name=group.name,
+        currency=group.currency or "₹",
+        week_start_day=group.week_start_day or "Monday",
+        invite_code=group.invite_code,
+        role="member"
+    )

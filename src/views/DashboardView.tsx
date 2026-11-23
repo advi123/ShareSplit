@@ -156,31 +156,36 @@ export const DashboardView: React.FC = () => {
     return (
       <div className="space-y-6 pb-12 animate-in fade-in duration-300">
         {/* Trip Top Header Banner */}
-        <div className="bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 text-white rounded-3xl p-6 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-xs text-white text-[11px] font-bold">
-              <Plane className="w-3.5 h-3.5" />
-              <span>Trip Expense Calculator</span>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 text-[11px] font-bold">
+                <Plane className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                <span>Trip Expense Calculator</span>
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200/60 dark:border-sky-800">
+                ✈️ Trip
+              </span>
             </div>
-            <h2 className="text-2xl font-black tracking-tight text-white">
+            <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
               {currentGroup?.name || settings.groupName}
             </h2>
-            <p className="text-xs text-sky-100 font-medium">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
               Simple vacation split • {activeMembers.length} members • {tripExpenses.length} total expenses
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => openModal('add-expense')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-indigo-700 hover:bg-sky-50 font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 font-bold text-xs rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
               <span>Add Trip Expense</span>
             </button>
             <button
               onClick={handleShareTripWhatsApp}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer"
               title="Share Settlement on WhatsApp"
             >
               <Share2 className="w-4 h-4" />

@@ -248,11 +248,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteGroup = async (groupId: string) => {
-    await apiService.groups.delete(groupId);
-    const remaining = userGroups.filter((g) => g.id !== groupId);
+    try {
+      await apiService.groups.delete(groupId);
+    } catch (err: any) {
+      const msg = (err?.message || '').toLowerCase();
+      // If already deleted or not found on server, treat as success locally
+      if (!msg.includes('not found') && !msg.includes('404')) {
+        throw err;
+      }
+    }
+    const cleanId = (groupId || '').toLowerCase();
+    const remaining = userGroups.filter(
+      (g) => g.id.toLowerCase() !== cleanId && g.name.toLowerCase() !== cleanId
+    );
     setUserGroups(remaining);
     showToast('Group deleted successfully', 'info');
-    if (activeGroupId === groupId) {
+    if (
+      activeGroupId.toLowerCase() === cleanId ||
+      userGroups.find((g) => g.id === activeGroupId)?.name.toLowerCase() === cleanId
+    ) {
       const nextGroup = remaining[0];
       if (nextGroup) {
         await switchGroup(nextGroup.id);

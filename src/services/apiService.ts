@@ -79,7 +79,11 @@ async function handleResponse(res: Response) {
     } catch {}
     throw new Error(detail);
   }
-  return res.json();
+  if (res.status === 204) {
+    return null;
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
 function parseExpenseFromApi(e: any): Expense {

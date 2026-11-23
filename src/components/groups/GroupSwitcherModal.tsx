@@ -247,15 +247,17 @@ export const GroupSwitcherModal: React.FC = () => {
                           </button>
                         )}
 
-                        {/* Delete Group */}
-                        <button
-                          type="button"
-                          onClick={() => setGroupToDelete({ id: grp.id, name: grp.name })}
-                          className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
-                          title={`Delete group ${grp.name}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Delete Group (non-default groups only) */}
+                        {grp.id !== 'default-group' && (
+                          <button
+                            type="button"
+                            onClick={() => setGroupToDelete({ id: grp.id, name: grp.name })}
+                            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                            title={`Delete group ${grp.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

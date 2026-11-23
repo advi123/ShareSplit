@@ -5,3 +5,4 @@ class SettingsSchema(BaseModel):
     currency: str
     week_starts_on: str
     default_category: str
+    gemini_api_key: str | None = None

@@ -1,6 +1,7 @@
 import os
 import uuid
 import shutil
+import base64
 from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session
 from app.core.config import settings
@@ -19,13 +20,19 @@ def save_uploaded_bill(db: Session, file: UploadFile) -> Bill:
     file_path = os.path.join(settings.UPLOAD_DIR, stored_name)
     
     try:
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+        file_bytes = file.file.read()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
+
+    try:
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+    except Exception:
+        pass
         
-    file_size = os.path.getsize(file_path)
+    file_size = len(file_bytes)
     mime_type = file.content_type or "image/jpeg"
+    image_data = f"data:{mime_type};base64,{base64.b64encode(file_bytes).decode('utf-8')}"
     
     bill_id = f"bill-{uuid.uuid4().hex[:8]}"
     db_bill = bill_repo.create_bill(
@@ -35,7 +42,8 @@ def save_uploaded_bill(db: Session, file: UploadFile) -> Bill:
         stored_filename=stored_name,
         file_path=file_path,
         mime_type=mime_type,
-        file_size=file_size
+        file_size=file_size,
+        image_data=image_data
     )
     return db_bill
 

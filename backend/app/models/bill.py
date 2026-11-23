@@ -13,6 +13,7 @@ class Bill(Base):
     file_path = Column(String, nullable=False)
     mime_type = Column(String, nullable=False)
     file_size = Column(Integer, nullable=False)
+    image_data = Column(String, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 
     expense = relationship("Expense", back_populates="bill")

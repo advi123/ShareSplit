@@ -113,6 +113,8 @@ def calculate_settlement_range(db: Session, group_id: str, from_date: str, to_da
 
     member_summaries = []
     for m in members:
+        if not m.is_active:
+            continue
         paid = paid_map[m.id]
         share = share_map[m.id]
         balance = paid - share

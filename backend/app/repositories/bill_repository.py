@@ -46,7 +46,8 @@ def create_bill(
     stored_filename: str,
     file_path: str,
     mime_type: str,
-    file_size: int
+    file_size: int,
+    image_data: str | None = None
 ) -> Bill:
     db_bill = Bill(
         id=bill_id,
@@ -54,7 +55,8 @@ def create_bill(
         stored_filename=stored_filename,
         file_path=file_path,
         mime_type=mime_type,
-        file_size=file_size
+        file_size=file_size,
+        image_data=image_data
     )
     db.add(db_bill)
     db.commit()

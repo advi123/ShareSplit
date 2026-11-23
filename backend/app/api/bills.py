@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Header, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
@@ -22,9 +22,14 @@ router = APIRouter(prefix="/bills", tags=["bills"])
 @router.post("/parse-ai")
 async def parse_receipt_ai(
     req: AIParsingRequest,
-    x_gemini_key: str | None = Header(None, alias="X-Gemini-Key")
+    x_gemini_key: str | None = Header(None, alias="X-Gemini-Key"),
+    db: Session = Depends(get_db)
 ):
     api_key = req.api_key or x_gemini_key
+    if not api_key:
+        group = group_service.get_or_create_default_group(db)
+        api_key = group.gemini_api_key
+
     raw_b64 = req.image_base64
     mime_type = req.mime_type or "image/jpeg"
     if "," in raw_b64:
@@ -81,11 +86,30 @@ def read_bill(bill_id: str, db: Session = Depends(get_db)):
 @router.get("/{bill_id}/image")
 def read_bill_image(bill_id: str, db: Session = Depends(get_db)):
     bill = bill_repo.get_bill(db, bill_id)
-    if not bill or not bill.file_path:
+    if not bill:
         raise HTTPException(status_code=404, detail="Bill not found")
-    if not os.path.exists(bill.file_path):
-        raise HTTPException(status_code=404, detail="Physical bill file not found on disk")
-    return FileResponse(bill.file_path, media_type=bill.mime_type)
+
+    if bill.image_data:
+        raw_b64 = bill.image_data
+        mime = bill.mime_type or "image/jpeg"
+        if "," in raw_b64:
+            header_part, raw_b64 = raw_b64.split(",", 1)
+            if "data:" in header_part and ";base64" in header_part:
+                mime = header_part.split("data:")[1].split(";base64")[0]
+        try:
+            image_bytes = base64.b64decode(raw_b64)
+            return Response(
+                content=image_bytes,
+                media_type=mime,
+                headers={"Cache-Control": "public, max-age=86400"}
+            )
+        except Exception:
+            pass
+
+    if bill.file_path and os.path.exists(bill.file_path):
+        return FileResponse(bill.file_path, media_type=bill.mime_type)
+
+    raise HTTPException(status_code=404, detail="Physical bill file not found on disk")
 
 @router.delete("/{bill_id}")
 def delete_bill(bill_id: str, db: Session = Depends(get_db)):

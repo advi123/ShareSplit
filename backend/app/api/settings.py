@@ -14,7 +14,8 @@ def read_settings(db: Session = Depends(get_db)):
         group_name=group.name,
         currency=group.currency,
         week_starts_on=group.week_start_day,
-        default_category="Groceries"
+        default_category="Groceries",
+        gemini_api_key=group.gemini_api_key
     )
 
 @router.put("", response_model=SettingsSchema)
@@ -25,11 +26,13 @@ def update_settings(settings_in: SettingsSchema, db: Session = Depends(get_db)):
         group.id,
         name=settings_in.group_name,
         currency=settings_in.currency,
-        week_start_day=settings_in.week_starts_on
+        week_start_day=settings_in.week_starts_on,
+        gemini_api_key=settings_in.gemini_api_key
     )
     return SettingsSchema(
         group_name=updated_group.name,
         currency=updated_group.currency,
         week_starts_on=updated_group.week_start_day,
-        default_category=settings_in.default_category
+        default_category=settings_in.default_category,
+        gemini_api_key=updated_group.gemini_api_key
     )

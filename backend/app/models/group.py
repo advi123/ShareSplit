@@ -10,6 +10,7 @@ class Group(Base):
     name = Column(String, nullable=False)
     currency = Column(String, default="₹")
     week_start_day = Column(String, default="Monday")
+    gemini_api_key = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

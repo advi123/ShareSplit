@@ -20,12 +20,14 @@ def create_group(db: Session, group_id: str, group_in: GroupCreate) -> Group:
     db.refresh(db_group)
     return db_group
 
-def update_group(db: Session, group_id: str, name: str, currency: str, week_start_day: str) -> Group | None:
+def update_group(db: Session, group_id: str, name: str, currency: str, week_start_day: str, gemini_api_key: str | None = None) -> Group | None:
     db_group = get_group(db, group_id)
     if db_group:
         db_group.name = name
         db_group.currency = currency
         db_group.week_start_day = week_start_day
+        if gemini_api_key is not None:
+            db_group.gemini_api_key = gemini_api_key
         db.commit()
         db.refresh(db_group)
     return db_group

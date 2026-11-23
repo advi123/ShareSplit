@@ -13,6 +13,7 @@ import { WeeklySettlementView } from './views/WeeklySettlementView';
 import { HistoryView } from './views/HistoryView';
 import { MembersView } from './views/MembersView';
 import { SettingsView } from './views/SettingsView';
+import { AuthView } from './views/AuthView';
 
 import { AddExpenseModal } from './components/expenses/AddExpenseModal';
 import { BillUploadModal } from './components/expenses/BillUploadModal';
@@ -84,10 +85,37 @@ const MainLayout: React.FC = () => {
   );
 };
 
+const AppContent: React.FC = () => {
+  const { user, isInitializing } = useApp();
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-2xl shadow-xl animate-bounce mb-4">
+          ⚡
+        </div>
+        <h2 className="text-slate-900 dark:text-white font-black text-lg tracking-tight">ShareSplit</h2>
+        <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">Securing your shared home expenses...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <AuthView />
+        <Toast />
+      </>
+    );
+  }
+
+  return <MainLayout />;
+};
+
 export const App: React.FC = () => {
   return (
     <AppProvider>
-      <MainLayout />
+      <AppContent />
     </AppProvider>
   );
 };

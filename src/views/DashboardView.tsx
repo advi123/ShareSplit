@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   TrendingUp,
   PlusCircle,
   Upload,
   ChevronRight,
   Receipt,
-  History
+  History,
+  Key,
+  Copy,
+  Check,
+  Share2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { calculateNetBalances, simplifyDebts } from '../services/settlementEngine';
@@ -20,8 +24,31 @@ export const DashboardView: React.FC = () => {
     currentWeek,
     settings,
     openModal,
-    setActiveSection
+    setActiveSection,
+    currentGroup,
+    showToast
   } = useApp();
+
+  const [copiedCode, setCopiedCode] = useState(false);
+  const inviteCode = currentGroup?.inviteCode || settings.inviteCode;
+  const displayGroupName = currentGroup?.name || settings.groupName || 'Home';
+
+  const handleCopyInviteCode = () => {
+    if (inviteCode) {
+      navigator.clipboard.writeText(inviteCode);
+      setCopiedCode(true);
+      showToast(`Group invite code ${inviteCode} copied to clipboard!`, 'success');
+      setTimeout(() => setCopiedCode(false), 2000);
+    }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (inviteCode) {
+      const text = `Hey! Join our "${displayGroupName}" flat expenses on ShareSplit.\n\n🔑 Invite Code: ${inviteCode}\n🌐 Open: ${window.location.origin}\n\nSign in or register and enter this code to join!`;
+      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+    }
+  };
 
   const currency = settings.currency;
 
@@ -70,7 +97,51 @@ export const DashboardView: React.FC = () => {
   const todayTransactions = simplifyDebts(todayNetBalancesNumeric, todayExpenses, members);
 
   return (
-    <div className="space-y-8 pb-12 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+      {/* 0. PROMINENT ROOMMATE INVITE CODE BANNER */}
+      <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-blue-950/30 border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">
+              Flat Invite Code
+            </span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+              Share with roommates to join <strong className="text-slate-900 dark:text-white">{displayGroupName}</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-emerald-500/30 shadow-2xs">
+              <Key className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="font-mono text-xl sm:text-2xl font-black text-slate-900 dark:text-emerald-300 tracking-wider select-all">
+                {inviteCode || 'GENERATING...'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden md:block">
+              Roommates enter this code to securely access this group
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleCopyInviteCode}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-2xs transition-all active:scale-95 cursor-pointer"
+            title="Copy invite code"
+          >
+            {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+            <span>{copiedCode ? 'Copied!' : 'Copy Code'}</span>
+          </button>
+          <button
+            onClick={handleShareWhatsApp}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
+            title="Share invite code via WhatsApp"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>WhatsApp</span>
+          </button>
+        </div>
+      </div>
+
       {/* 1. TOP SUMMARY CARDS */}
       <div className="grid grid-cols-1 gap-4">
         {/* Total Spent */}

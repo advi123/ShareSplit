@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, RefreshCw, Moon, Sun, Settings as SettingsIcon } from 'lucide-react';
+import { Save, RefreshCw, Moon, Sun, Settings as SettingsIcon, Key, Copy, Check, Share2, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ExpenseCategory, GroupSettings } from '../types';
 
@@ -18,9 +18,30 @@ const CATEGORIES: ExpenseCategory[] = [
 ];
 
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings, resetAllData, toggleTheme: appToggleTheme } = useApp();
+  const { settings, updateSettings, resetAllData, toggleTheme: appToggleTheme, currentGroup, showToast } = useApp();
 
   const [formData, setFormData] = useState<GroupSettings>(settings);
+  const [copied, setCopied] = useState(false);
+
+  const inviteCode = currentGroup?.inviteCode || settings.inviteCode;
+  const displayGroupName = currentGroup?.name || settings.groupName || 'Home';
+
+  const handleCopyCode = () => {
+    if (inviteCode) {
+      navigator.clipboard.writeText(inviteCode);
+      setCopied(true);
+      showToast(`Group invite code ${inviteCode} copied!`, 'success');
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (inviteCode) {
+      const text = `Hey! Join our "${displayGroupName}" flat expenses on ShareSplit.\n\n🔑 Invite Code: ${inviteCode}\n🌐 Open: ${window.location.origin}\n\nSign in or register and enter this code to join!`;
+      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+    }
+  };
 
   useEffect(() => {
     setFormData(settings);
@@ -50,6 +71,48 @@ export const SettingsView: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Roommate Access & Invite Code Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Roommate Access & Group Password Security
+            </h3>
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Every roommate creates their own account with a private password. Share this invite code with your flatmates so they can automatically join <strong>{displayGroupName}</strong> when signing up.
+          </p>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="space-y-0.5">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Flat Invite Code</span>
+              <div className="font-mono text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-wider">
+                {inviteCode || 'N/A'}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyCode}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors shadow-2xs cursor-pointer"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                <span>{copied ? 'Copied' : 'Copy Code'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleShareWhatsApp}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>WhatsApp</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Group Preferences Card */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">

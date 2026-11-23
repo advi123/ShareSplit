@@ -96,6 +96,7 @@ export interface GroupSettings {
   defaultCategory: ExpenseCategory;
   theme: 'light' | 'dark' | 'system';
   geminiApiKey?: string;
+  inviteCode?: string;
 }
 
 export type NavSection =

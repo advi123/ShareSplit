@@ -13,6 +13,7 @@ interface AppContextType {
   // Auth & Multi-Group
   user: User | null;
   isAuthenticated: boolean;
+  isInitializing: boolean;
   userGroups: GroupBrief[];
   activeGroupId: string;
   currentGroup: GroupBrief | null;
@@ -87,6 +88,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth state
   const [user, setUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [userGroups, setUserGroups] = useState<GroupBrief[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string>(
     localStorage.getItem('sharesplit_active_group_id') || 'default-group'
@@ -98,12 +100,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [bills, setBills] = useState<Bill[]>(initialCache?.bills || []);
   const [currentWeek, setCurrentWeek] = useState<Week>(initialCache?.currentWeek || { id: '', startDate: '', endDate: '', status: 'active' });
   const [historicalWeeks, setHistoricalWeeks] = useState<Week[]>(initialCache?.historicalWeeks || []);
-  const [settings, setSettings] = useState<GroupSettings>(initialCache?.settings || {
-    groupName: 'Home',
-    currency: '₹',
-    weekStartsOn: 'Monday',
-    defaultCategory: 'Groceries',
-    theme: 'light'
+  const [settings, setSettings] = useState<GroupSettings>(() => {
+    const savedTheme = (localStorage.getItem('sharesplit_theme') as 'light' | 'dark' | 'system') || 'light';
+    const base = initialCache?.settings || {
+      groupName: 'Home',
+      currency: '₹',
+      weekStartsOn: 'Monday',
+      defaultCategory: 'Groceries',
+      theme: savedTheme
+    };
+    return { ...base, theme: savedTheme || base.theme || 'light' };
   });
 
   const [activeSection, setActiveSection] = useState<NavSection>('dashboard');
@@ -122,6 +128,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const initApp = async () => {
+    setIsInitializing(true);
     const token = localStorage.getItem('sharesplit_token');
     if (token) {
       try {
@@ -132,15 +139,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setActiveGroupId(authData.active_group_id);
           localStorage.setItem('sharesplit_active_group_id', authData.active_group_id);
         }
+        await loadAllData();
       } catch (err) {
         console.warn('Auto auth validation failed:', err);
+        apiService.auth.logout();
+        setUser(null);
       }
+    } else {
+      setUser(null);
     }
-    await loadAllData();
+    setIsInitializing(false);
   };
 
   useEffect(() => {
-    if (settings.theme === 'dark') {
+    const savedTheme = localStorage.getItem('sharesplit_theme') || settings.theme || 'light';
+    if (savedTheme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
@@ -210,8 +223,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(null);
     setUserGroups([]);
     setActiveGroupId('default-group');
+    setMembers([]);
+    setExpenses([]);
+    setBills([]);
     showToast('Signed out successfully', 'info');
-    loadAllData();
   };
 
   const switchGroup = async (groupId: string) => {
@@ -458,13 +473,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleTheme = () => {
-    const current = settings.theme;
-    const next: 'light' | 'dark' | 'system' = current === 'dark' ? 'light' : 'dark';
+    const isDark = document.documentElement.classList.contains('dark') || settings.theme === 'dark';
+    const next: 'light' | 'dark' = isDark ? 'light' : 'dark';
     if (next === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+    localStorage.setItem('sharesplit_theme', next);
     const updated: GroupSettings = { ...settings, theme: next };
     setSettings(updated);
     storageService.saveSettings(updated).catch(() => {});
@@ -473,8 +489,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateSettings = async (newSettings: GroupSettings) => {
     if (newSettings.theme === 'dark') {
       document.documentElement.classList.add('dark');
+      localStorage.setItem('sharesplit_theme', 'dark');
     } else if (newSettings.theme === 'light') {
       document.documentElement.classList.remove('dark');
+      localStorage.setItem('sharesplit_theme', 'light');
     }
     setSettings(newSettings);
     try {
@@ -514,6 +532,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         user,
         isAuthenticated: !!user,
+        isInitializing,
         userGroups,
         activeGroupId,
         currentGroup,

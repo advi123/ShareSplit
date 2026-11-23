@@ -32,12 +32,14 @@ export const Header: React.FC = () => {
     }
   };
 
+  const inviteCode = currentGroup?.inviteCode || settings.inviteCode;
+
   const handleCopyCode = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (currentGroup?.inviteCode) {
-      navigator.clipboard.writeText(currentGroup.inviteCode);
+    if (inviteCode) {
+      navigator.clipboard.writeText(inviteCode);
       setCopied(true);
-      showToast(`Invite code ${currentGroup.inviteCode} copied!`, 'success');
+      showToast(`Group invite code ${inviteCode} copied!`, 'success');
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -67,14 +69,14 @@ export const Header: React.FC = () => {
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200" />
               </button>
 
-              {currentGroup?.inviteCode && (
+              {inviteCode && (
                 <button
                   onClick={handleCopyCode}
-                  className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 transition-colors"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/80 border border-emerald-200 dark:border-emerald-800 text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer"
                   title="Click to copy group invite code"
                 >
-                  {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Key className="w-3 h-3 text-slate-400" />}
-                  <span>{currentGroup.inviteCode}</span>
+                  {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Key className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
+                  <span>{inviteCode}</span>
                 </button>
               )}
             </div>

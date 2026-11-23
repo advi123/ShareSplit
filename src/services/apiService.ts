@@ -467,7 +467,8 @@ export const apiService = {
         weekStartsOn: s.week_starts_on,
         defaultCategory: s.default_category || 'Groceries',
         theme: localTheme,
-        geminiApiKey: s.gemini_api_key || undefined
+        geminiApiKey: s.gemini_api_key || undefined,
+        inviteCode: s.invite_code || undefined
       };
     },
 

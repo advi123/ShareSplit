@@ -9,6 +9,7 @@ import app.repositories.expense_repository as expense_repo
 import app.repositories.member_repository as member_repo
 import app.repositories.bill_repository as bill_repo
 import app.repositories.week_repository as week_repo
+import app.repositories.group_repository as group_repo
 import app.services.week_service as week_service
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseItemResponse, CalculatedShare
 from app.utils.calculations import split_amount_equally
@@ -139,8 +140,11 @@ def validate_and_create_expense(db: Session, group_id: str, expense_in: ExpenseC
             )
             
     # 2. Assign week dynamically
+    db_group = group_repo.get_group(db, group_id)
+    is_trip = db_group and db_group.group_type == "trip"
+
     week = week_service.get_or_create_week(db, group_id, expense_in.date)
-    if week.status == "closed":
+    if not is_trip and week.status == "closed":
         if not getattr(expense_in, "force_reopen", False):
             raise HTTPException(status_code=409, detail=f"Cannot add expense to closed week {week.id}.")
         week_service.reopen_week(db, week.id)
@@ -200,8 +204,11 @@ def validate_and_update_expense(db: Session, group_id: str, expense_id: str, exp
                 detail=f"Sum of items ({items_total}) must match total expense amount ({expense_in.total_amount})."
             )
             
+    db_group = group_repo.get_group(db, group_id)
+    is_trip = db_group and db_group.group_type == "trip"
+
     existing_week = week_repo.get_week(db, existing_expense.week_id) if existing_expense.week_id else None
-    if existing_week and existing_week.status == "closed":
+    if not is_trip and existing_week and existing_week.status == "closed":
         if not getattr(expense_in, "force_reopen", False):
             raise HTTPException(status_code=409, detail="Cannot modify expense in a closed week.")
         week_service.reopen_week(db, existing_week.id)

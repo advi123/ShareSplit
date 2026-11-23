@@ -35,11 +35,45 @@ def get_member_shares_in_expense(member_id: str, expense: Expense) -> Decimal:
         return total_share
     return Decimal("0.00")
 
-def delete_or_deactivate_member(db: Session, member_id: str) -> dict:
+def deactivate_member(db: Session, member_id: str) -> dict:
     db_member = member_repo.get_member(db, member_id)
     if not db_member:
         return {"success": False, "error": "Member not found", "status_code": 404}
-        
+    member_repo.deactivate_member(db, member_id)
+    return {"success": True, "action": "deactivated", "member": db_member}
+
+def permanently_delete_member(db: Session, member_id: str) -> dict:
+    db_member = member_repo.get_member(db, member_id)
+    if not db_member:
+        return {"success": False, "error": "Member not found", "status_code": 404}
+
+    # Check if this member is the payer of any expense
+    has_paid = db.query(exists().where(Expense.paid_by == member_id)).scalar()
+    if has_paid:
+        return {
+            "success": False,
+            "error": f"Cannot permanently delete {db_member.name} because they have paid expenses recorded. You can keep them inactive instead.",
+            "status_code": 400
+        }
+
+    # Clean up associations in secondary join tables
+    db.execute(expense_participants.delete().where(expense_participants.c.member_id == member_id))
+    db.execute(expense_item_participants.delete().where(expense_item_participants.c.member_id == member_id))
+
+    # Delete the member
+    member_repo.delete_member(db, member_id)
+    return {"success": True, "action": "permanently_deleted"}
+
+def delete_or_deactivate_member(db: Session, member_id: str, permanent: bool = False, deactivate_only: bool = False) -> dict:
+    if permanent:
+        return permanently_delete_member(db, member_id)
+    if deactivate_only:
+        return deactivate_member(db, member_id)
+
+    db_member = member_repo.get_member(db, member_id)
+    if not db_member:
+        return {"success": False, "error": "Member not found", "status_code": 404}
+
     if has_history(db, member_id):
         # Has history: deactivate
         member_repo.deactivate_member(db, member_id)

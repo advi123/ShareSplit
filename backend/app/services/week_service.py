@@ -9,10 +9,23 @@ def get_or_create_week(db: Session, group_id: str, date_str: str) -> Week:
     week_start_day = db_group.week_start_day if db_group else "Monday"
     
     start_date, end_date = get_week_range(date_str, week_start_day)
-    week_id = f"week-{start_date}"
     
-    db_week = week_repo.get_week(db, week_id)
+    # Check if a week specifically belonging to this group already exists for this date range
+    db_week = db.query(Week).filter(
+        Week.group_id == group_id,
+        Week.start_date == start_date
+    ).first()
+    
     if not db_week:
+        if group_id == "default-group":
+            week_id = f"week-{start_date}"
+            # Check if this ID is unexpectedly held by another group
+            existing = db.query(Week).filter(Week.id == week_id).first()
+            if existing and existing.group_id != group_id:
+                week_id = f"week-{group_id}-{start_date}"
+        else:
+            week_id = f"week-{group_id}-{start_date}"
+            
         db_week = week_repo.create_week(db, group_id, week_id, start_date, end_date)
         
     return db_week

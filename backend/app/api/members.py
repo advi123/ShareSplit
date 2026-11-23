@@ -41,11 +41,25 @@ def update_member(member_id: str, member_in: MemberUpdate, db: Session = Depends
     return member
 
 @router.delete("/{member_id}")
-def delete_member(member_id: str, db: Session = Depends(get_db)):
-    result = member_service.delete_or_deactivate_member(db, member_id)
+def delete_member(
+    member_id: str,
+    permanent: bool = Query(False),
+    deactivate_only: bool = Query(False),
+    db: Session = Depends(get_db)
+):
+    result = member_service.delete_or_deactivate_member(
+        db, member_id, permanent=permanent, deactivate_only=deactivate_only
+    )
     if not result["success"]:
         raise HTTPException(status_code=result["status_code"], detail=result["error"])
     return {"action": result["action"], "member_id": member_id}
+
+@router.post("/{member_id}/deactivate", response_model=Member)
+def deactivate_member(member_id: str, db: Session = Depends(get_db)):
+    member = member_repo.deactivate_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return member
 
 @router.post("/{member_id}/reactivate", response_model=Member)
 def reactivate_member(member_id: str, db: Session = Depends(get_db)):

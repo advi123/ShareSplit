@@ -35,7 +35,7 @@ def update_group(group_id: str, group_in: GroupUpdate, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Group not found")
     return group
 
-@router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{group_id}")
 def delete_group(
     group_id: str,
     user: User = Depends(get_current_user),
@@ -43,4 +43,4 @@ def delete_group(
 ):
     """Delete a group and its associated data (admin only)."""
     auth_service.delete_group_for_user(db, user, group_id)
-    return None
+    return {"status": "success", "message": "Group deleted successfully"}

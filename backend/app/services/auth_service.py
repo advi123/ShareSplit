@@ -330,19 +330,33 @@ def join_group_with_code(db: Session, user: User, invite_code: str) -> GroupBrie
     )
 
 def delete_group_for_user(db: Session, user: User, group_id: str) -> bool:
-    group = db.query(Group).filter(Group.id == group_id).first()
+    clean_id = (group_id or "").strip()
+    if not clean_id:
+        return True
+
+    # Find group by exact ID, or fallback by name or invite code
+    group = db.query(Group).filter(
+        (Group.id == clean_id) |
+        (Group.name.ilike(clean_id)) |
+        (Group.invite_code == clean_id.upper())
+    ).first()
+
+    # If the group does not exist (already deleted), return True idempotently
     if not group:
+        return True
+
+    if group.id == "default-group":
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Group not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The default group cannot be deleted."
         )
 
     ug = db.query(UserGroup).filter(
         UserGroup.user_id == user.id,
-        UserGroup.group_id == group_id
+        UserGroup.group_id == group.id
     ).first()
 
-    is_admin = (ug and ug.role == "admin") or (group.created_by == user.id)
+    is_admin = (ug and ug.role == "admin") or (group.created_by == user.id) or (user.id and not group.created_by)
     if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

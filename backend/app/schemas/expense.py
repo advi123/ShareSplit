@@ -27,10 +27,12 @@ class ExpenseBase(BaseModel):
 class ExpenseCreate(ExpenseBase):
     participants: Optional[List[str]] = None
     items: Optional[List[ExpenseItemCreate]] = None
+    force_reopen: Optional[bool] = False
 
 class ExpenseUpdate(ExpenseBase):
     participants: Optional[List[str]] = None
     items: Optional[List[ExpenseItemCreate]] = None
+    force_reopen: Optional[bool] = False
 
 class CalculatedShare(BaseModel):
     member_id: str

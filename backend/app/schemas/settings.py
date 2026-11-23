@@ -6,3 +6,4 @@ class SettingsSchema(BaseModel):
     week_starts_on: str
     default_category: str
     gemini_api_key: str | None = None
+    invite_code: str | None = None

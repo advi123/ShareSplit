@@ -8,6 +8,7 @@ from app.models.bill import Bill
 import app.repositories.expense_repository as expense_repo
 import app.repositories.member_repository as member_repo
 import app.repositories.bill_repository as bill_repo
+import app.repositories.week_repository as week_repo
 import app.services.week_service as week_service
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseItemResponse, CalculatedShare
 from app.utils.calculations import split_amount_equally
@@ -140,6 +141,8 @@ def validate_and_create_expense(db: Session, group_id: str, expense_in: ExpenseC
     # 2. Assign week dynamically
     week = week_service.get_or_create_week(db, group_id, expense_in.date)
     if week.status == "closed":
+        if not getattr(expense_in, "force_reopen", False):
+            raise HTTPException(status_code=409, detail=f"Cannot add expense to closed week {week.id}.")
         week_service.reopen_week(db, week.id)
         
     # Create the expense in DB
@@ -197,6 +200,12 @@ def validate_and_update_expense(db: Session, group_id: str, expense_id: str, exp
                 detail=f"Sum of items ({items_total}) must match total expense amount ({expense_in.total_amount})."
             )
             
+    existing_week = week_repo.get_week(db, existing_expense.week_id) if existing_expense.week_id else None
+    if existing_week and existing_week.status == "closed":
+        if not getattr(expense_in, "force_reopen", False):
+            raise HTTPException(status_code=409, detail="Cannot modify expense in a closed week.")
+        week_service.reopen_week(db, existing_week.id)
+
     new_week = week_service.get_or_create_week(db, group_id, expense_in.date)
     expense = expense_repo.update_expense(db, expense_id, new_week.id, expense_in)
     
@@ -212,9 +221,9 @@ def delete_expense_with_check(db: Session, group_id: str, expense_id: str) -> bo
         raise HTTPException(status_code=404, detail="Expense not found.")
         
     # Check closed week
-    week = week_service.get_or_create_week(db, group_id, expense.date)
-    if week.status == "closed":
-        week_service.reopen_week(db, week.id)
+    week = week_repo.get_week(db, expense.week_id) if expense.week_id else None
+    if week and week.status == "closed":
+        raise HTTPException(status_code=409, detail="Cannot delete expense in a closed week.")
         
     # Set linked bill expense_id to None instead of physical delete of bill or path
     if expense.bill:

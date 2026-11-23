@@ -63,8 +63,12 @@ def update_expense(
     return expense_service.validate_and_update_expense(db, group_id, expense_id, expense_in)
 
 @router.delete("/{expense_id}")
-def delete_expense(expense_id: str, db: Session = Depends(get_db)):
-    success = expense_service.delete_expense(db, expense_id)
+def delete_expense(
+    expense_id: str,
+    group_id: str = Depends(get_active_group_id),
+    db: Session = Depends(get_db)
+):
+    success = expense_service.delete_expense_with_check(db, group_id, expense_id)
     if not success:
         raise HTTPException(status_code=404, detail="Expense not found")
     return {"status": "success", "message": f"Expense {expense_id} deleted"}

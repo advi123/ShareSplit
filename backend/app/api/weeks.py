@@ -59,18 +59,18 @@ def read_week_details(week_id: str, db: Session = Depends(get_db)):
         "settlement": settlement
     }
 
-@router.post("/{week_id}/close")
+@router.post("/{week_id}/close", response_model=Week)
 def close_week(week_id: str, db: Session = Depends(get_db)):
     db_week = week_repo.get_week(db, week_id)
     if not db_week:
         raise HTTPException(status_code=404, detail="Week not found")
-    closed = week_service.close_week(db, db_week.group_id, week_id)
-    return {"status": "success", "message": f"Week {week_id} closed", "week": closed}
+    closed = week_service.close_week(db, week_id)
+    return closed
 
-@router.post("/{week_id}/reopen")
+@router.post("/{week_id}/reopen", response_model=Week)
 def reopen_week(week_id: str, db: Session = Depends(get_db)):
     db_week = week_repo.get_week(db, week_id)
     if not db_week:
         raise HTTPException(status_code=404, detail="Week not found")
-    reopened = week_service.reopen_week(db, db_week.group_id, week_id)
-    return {"status": "success", "message": f"Week {week_id} reopened", "week": reopened}
+    reopened = week_service.reopen_week(db, week_id)
+    return reopened

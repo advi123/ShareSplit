@@ -119,20 +119,34 @@ def register_user(db: Session, reg: UserRegister) -> AuthResponse:
             )
         role = "member"
     else:
-        # Create fresh group
-        grp_name = reg.group_name.strip() if reg.group_name else f"{reg.name}'s Flat"
-        group_id = f"grp-{uuid.uuid4().hex[:8]}"
-        target_group = Group(
-            id=group_id,
-            name=grp_name,
-            currency="₹",
-            week_start_day="Monday",
-            invite_code=generate_invite_code("SPLIT"),
-            created_by=new_user.id
-        )
-        db.add(target_group)
-        db.commit()
-        db.refresh(target_group)
+        # Check if default-group exists and has no registered user yet (e.g. existing database with expenses)
+        default_grp = db.query(Group).filter(Group.id == "default-group").first()
+        existing_owners = db.query(UserGroup).filter(UserGroup.group_id == "default-group").count() if default_grp else 1
+
+        if default_grp and existing_owners == 0:
+            target_group = default_grp
+            if not target_group.invite_code:
+                target_group.invite_code = generate_invite_code("HOME")
+            target_group.created_by = new_user.id
+            if reg.group_name and reg.group_name.strip():
+                target_group.name = reg.group_name.strip()
+            db.commit()
+            db.refresh(target_group)
+        else:
+            # Create fresh group
+            grp_name = reg.group_name.strip() if reg.group_name else f"{reg.name}'s Flat"
+            group_id = f"grp-{uuid.uuid4().hex[:8]}"
+            target_group = Group(
+                id=group_id,
+                name=grp_name,
+                currency="₹",
+                week_start_day="Monday",
+                invite_code=generate_invite_code("SPLIT"),
+                created_by=new_user.id
+            )
+            db.add(target_group)
+            db.commit()
+            db.refresh(target_group)
 
     # Link user to group
     ug = UserGroup(
@@ -143,19 +157,31 @@ def register_user(db: Session, reg: UserRegister) -> AuthResponse:
     )
     db.add(ug)
 
-    # Also create/link a Member record in the group
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
-    member_record = Member(
-        id=f"mem-{uuid.uuid4().hex[:8]}",
-        group_id=target_group.id,
-        user_id=new_user.id,
-        name=new_user.name,
-        joined_at=today_str,
-        is_active=True,
-        color="bg-emerald-600"
+    # Also link to existing member record (e.g. 'Advi' / 'mem-you') or create a new Member record in the group
+    existing_mem = (
+        db.query(Member)
+        .filter(Member.group_id == target_group.id)
+        .filter((Member.name.ilike(new_user.name)) | (Member.id == "mem-you"))
+        .first()
     )
-    db.add(member_record)
-    db.commit()
+    if existing_mem and not existing_mem.user_id:
+        existing_mem.user_id = new_user.id
+        if existing_mem.name in ("You", ""):
+            existing_mem.name = new_user.name
+        db.commit()
+    else:
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        member_record = Member(
+            id=f"mem-{uuid.uuid4().hex[:8]}",
+            group_id=target_group.id,
+            user_id=new_user.id,
+            name=new_user.name,
+            joined_at=today_str,
+            is_active=True,
+            color="bg-emerald-600"
+        )
+        db.add(member_record)
+        db.commit()
 
     return _build_auth_response(db, new_user)
 

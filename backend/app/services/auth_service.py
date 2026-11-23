@@ -25,6 +25,7 @@ def _build_auth_response(db: Session, user: User) -> AuthResponse:
                 name=grp.name,
                 currency=grp.currency or "₹",
                 week_start_day=grp.week_start_day or "Monday",
+                group_type=grp.group_type or "home",
                 invite_code=grp.invite_code,
                 role=ug.role
             )
@@ -39,6 +40,7 @@ def _build_auth_response(db: Session, user: User) -> AuthResponse:
                 name="Home",
                 currency="₹",
                 week_start_day="Monday",
+                group_type="home",
                 invite_code=generate_invite_code("HOME")
             )
             db.add(default_grp)
@@ -60,6 +62,7 @@ def _build_auth_response(db: Session, user: User) -> AuthResponse:
                 name=default_grp.name,
                 currency=default_grp.currency or "₹",
                 week_start_day=default_grp.week_start_day or "Monday",
+                group_type=default_grp.group_type or "home",
                 invite_code=default_grp.invite_code,
                 role="admin"
             )
@@ -208,12 +211,15 @@ def get_current_user_profile(db: Session, user: User) -> AuthResponse:
 
 def create_group_for_user(db: Session, user: User, grp_in: GroupCreate) -> GroupBrief:
     group_id = f"grp-{uuid.uuid4().hex[:8]}"
+    g_type = getattr(grp_in, "group_type", "home") or "home"
+    code_prefix = "TRIP" if g_type == "trip" else "SPLIT"
     new_group = Group(
         id=group_id,
         name=grp_in.name.strip(),
         currency=grp_in.currency or "₹",
         week_start_day=grp_in.week_start_day or "Monday",
-        invite_code=generate_invite_code("SPLIT"),
+        group_type=g_type,
+        invite_code=generate_invite_code(code_prefix),
         created_by=user.id
     )
     db.add(new_group)
@@ -247,6 +253,7 @@ def create_group_for_user(db: Session, user: User, grp_in: GroupCreate) -> Group
         name=new_group.name,
         currency=new_group.currency or "₹",
         week_start_day=new_group.week_start_day or "Monday",
+        group_type=new_group.group_type or "home",
         invite_code=new_group.invite_code,
         role="admin"
     )
@@ -275,6 +282,7 @@ def join_group_with_code(db: Session, user: User, invite_code: str) -> GroupBrie
             name=group.name,
             currency=group.currency or "₹",
             week_start_day=group.week_start_day or "Monday",
+            group_type=group.group_type or "home",
             invite_code=group.invite_code,
             role=existing_ug.role
         )
@@ -316,6 +324,32 @@ def join_group_with_code(db: Session, user: User, invite_code: str) -> GroupBrie
         name=group.name,
         currency=group.currency or "₹",
         week_start_day=group.week_start_day or "Monday",
+        group_type=group.group_type or "home",
         invite_code=group.invite_code,
         role="member"
     )
+
+def delete_group_for_user(db: Session, user: User, group_id: str) -> bool:
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Group not found"
+        )
+
+    ug = db.query(UserGroup).filter(
+        UserGroup.user_id == user.id,
+        UserGroup.group_id == group_id
+    ).first()
+
+    is_admin = (ug and ug.role == "admin") or (group.created_by == user.id)
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to delete this group. Only group admins can delete it."
+        )
+
+    # Delete group (cascades to members, expenses, weeks, user_groups)
+    db.delete(group)
+    db.commit()
+    return True

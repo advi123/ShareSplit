@@ -23,11 +23,14 @@ def read_settings(
         db.commit()
         db.refresh(group)
         
+    g_type = group.group_type or "home"
+    default_cat = "Food & Drinks" if g_type == "trip" else "Groceries"
     return SettingsSchema(
         group_name=group.name,
         currency=group.currency or "₹",
         week_starts_on=group.week_start_day or "Monday",
-        default_category="Groceries",
+        default_category=default_cat,
+        group_type=g_type,
         gemini_api_key=group.gemini_api_key,
         invite_code=group.invite_code
     )
@@ -55,6 +58,7 @@ def update_settings(
         currency=updated_group.currency,
         week_starts_on=updated_group.week_start_day,
         default_category=settings_in.default_category,
+        group_type=updated_group.group_type or "home",
         gemini_api_key=updated_group.gemini_api_key,
         invite_code=updated_group.invite_code
     )

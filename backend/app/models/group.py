@@ -11,6 +11,7 @@ class Group(Base):
     currency = Column(String, default="₹")
     week_start_day = Column(String, default="Monday")
     gemini_api_key = Column(String, nullable=True)
+    group_type = Column(String(20), default="home")
     invite_code = Column(String, unique=True, index=True, nullable=True)
     created_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

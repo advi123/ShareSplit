@@ -65,6 +65,8 @@ def startup_event():
         try:
             conn.execute(text("ALTER TABLE groups ADD COLUMN IF NOT EXISTS invite_code VARCHAR(20);"))
             conn.execute(text("ALTER TABLE groups ADD COLUMN IF NOT EXISTS created_by VARCHAR(50);"))
+            conn.execute(text("ALTER TABLE groups ADD COLUMN IF NOT EXISTS group_type VARCHAR(20) DEFAULT 'home';"))
+            conn.execute(text("UPDATE groups SET group_type = 'home' WHERE group_type IS NULL;"))
             conn.execute(text("ALTER TABLE members ADD COLUMN IF NOT EXISTS user_id VARCHAR(50);"))
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_groups_invite_code ON groups(invite_code) WHERE invite_code IS NOT NULL;"))
         except Exception:

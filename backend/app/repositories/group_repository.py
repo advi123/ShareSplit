@@ -13,12 +13,21 @@ def create_group(db: Session, group_id: str, group_in: GroupCreate) -> Group:
         id=group_id,
         name=group_in.name,
         currency=group_in.currency,
-        week_start_day=group_in.week_start_day
+        week_start_day=group_in.week_start_day,
+        group_type=getattr(group_in, "group_type", "home") or "home"
     )
     db.add(db_group)
     db.commit()
     db.refresh(db_group)
     return db_group
+
+def delete_group(db: Session, group_id: str) -> bool:
+    db_group = get_group(db, group_id)
+    if not db_group:
+        return False
+    db.delete(db_group)
+    db.commit()
+    return True
 
 def update_group(db: Session, group_id: str, name: str, currency: str, week_start_day: str, gemini_api_key: str | None = None) -> Group | None:
     db_group = get_group(db, group_id)

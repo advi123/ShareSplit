@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.auth_dependency import get_current_user
+from app.models.user import User
 from app.schemas.group import Group, GroupUpdate
 import app.repositories.group_repository as group_repo
 import app.services.group_service as group_service
+import app.services.auth_service as auth_service
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -31,3 +34,13 @@ def update_group(group_id: str, group_in: GroupUpdate, db: Session = Depends(get
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
     return group
+
+@router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_group(
+    group_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a group and its associated data (admin only)."""
+    auth_service.delete_group_for_user(db, user, group_id)
+    return None

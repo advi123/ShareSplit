@@ -28,6 +28,7 @@ class GroupBrief(BaseModel):
     name: str
     currency: str = "₹"
     week_start_day: str = "Monday"
+    group_type: str = "home"
     invite_code: Optional[str] = None
     role: str = "member"
 
@@ -42,6 +43,7 @@ class GroupCreate(BaseModel):
     name: str = Field(..., min_length=2)
     currency: str = "₹"
     week_start_day: str = "Monday"
+    group_type: str = "home"
 
 class GroupJoin(BaseModel):
     invite_code: str = Field(..., min_length=4)

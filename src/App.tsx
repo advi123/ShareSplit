@@ -21,6 +21,8 @@ import { CloseWeekModal } from './components/settlement/CloseWeekModal';
 import { ReopenWeekModal } from './components/settlement/ReopenWeekModal';
 import { RemoveMemberConfirmModal } from './components/members/RemoveMemberConfirmModal';
 import { ConfirmPastWeekSettledModal } from './components/settlement/ConfirmPastWeekSettledModal';
+import { AuthModal } from './components/auth/AuthModal';
+import { GroupSwitcherModal } from './components/groups/GroupSwitcherModal';
 
 const MainLayout: React.FC = () => {
   const { activeSection, pendingPastWeekSettlement } = useApp();
@@ -73,6 +75,8 @@ const MainLayout: React.FC = () => {
       <ReopenWeekModal />
       <RemoveMemberConfirmModal />
       <ConfirmPastWeekSettledModal week={pendingPastWeekSettlement} />
+      <AuthModal />
+      <GroupSwitcherModal />
 
       {/* Global Toast Notifications */}
       <Toast />

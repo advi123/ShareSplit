@@ -107,3 +107,28 @@ export type NavSection =
   | 'history'
   | 'members'
   | 'settings';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string;
+  createdAt?: string;
+}
+
+export interface GroupBrief {
+  id: string;
+  name: string;
+  currency: string;
+  weekStartDay: string;
+  inviteCode?: string;
+  role: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: User;
+  groups: GroupBrief[];
+  active_group_id: string;
+}

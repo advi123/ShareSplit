@@ -1,9 +1,22 @@
 import React from 'react';
-import { Calendar, Moon, Sun, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
+import { Calendar, Moon, Sun, Settings as SettingsIcon, ChevronDown, User as UserIcon, LogOut, LogIn, Key, Copy, Check } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const Header: React.FC = () => {
-  const { currentWeek, settings, toggleTheme, resetAllData, activeSection, setActiveSection } = useApp();
+  const {
+    currentWeek,
+    settings,
+    toggleTheme,
+    activeSection,
+    setActiveSection,
+    user,
+    logout,
+    openModal,
+    currentGroup,
+    showToast
+  } = useApp();
+
+  const [copied, setCopied] = React.useState(false);
 
   const formatDateRange = (start: string, end: string) => {
     if (!start || !end) return 'Current Week';
@@ -19,40 +32,92 @@ export const Header: React.FC = () => {
     }
   };
 
+  const handleCopyCode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (currentGroup?.inviteCode) {
+      navigator.clipboard.writeText(currentGroup.inviteCode);
+      setCopied(true);
+      showToast(`Invite code ${currentGroup.inviteCode} copied!`, 'success');
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const displayGroupName = currentGroup?.name || settings.groupName || 'Home';
+
   return (
-    <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5">
-      <div className="flex items-center justify-between gap-4">
-        {/* Left info: Group & Week */}
+    <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3">
+      <div className="flex items-center justify-between gap-3">
+        {/* Left: Group Switcher & Active Week */}
         <div className="flex items-center gap-3">
-          {/* Mobile brand indicator */}
-          <div className="lg:hidden w-8 h-8 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center font-bold text-base shadow-sm">
+          {/* Mobile brand icon */}
+          <div className="lg:hidden w-8 h-8 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center font-black text-sm shadow-xs">
             S
           </div>
 
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                {settings.groupName}
-              </h2>
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                Active Week
-              </span>
+              <button
+                onClick={() => openModal('group-switcher')}
+                className="flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-0.5 -ml-2 rounded-lg transition-colors group cursor-pointer"
+                title="Switch or create groups"
+              >
+                <h2 className="text-sm font-black text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 truncate max-w-[140px] sm:max-w-[200px]">
+                  {displayGroupName}
+                </h2>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200" />
+              </button>
+
+              {currentGroup?.inviteCode && (
+                <button
+                  onClick={handleCopyCode}
+                  className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 transition-colors"
+                  title="Click to copy group invite code"
+                >
+                  {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Key className="w-3 h-3 text-slate-400" />}
+                  <span>{currentGroup.inviteCode}</span>
+                </button>
+              )}
             </div>
+
             <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span>{formatDateRange(currentWeek.startDate, currentWeek.endDate)}</span>
+              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="truncate">{formatDateRange(currentWeek.startDate, currentWeek.endDate)}</span>
             </div>
           </div>
         </div>
 
-        {/* Right actions: Settings, Clean Theme & Reset */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Settings button - easily accessible on mobile and desktop */}
+        {/* Right: Auth / Profile, Settings & Theme */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
+          {user ? (
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 pl-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                <UserIcon className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="max-w-[70px] sm:max-w-[120px] truncate">{user.name}</span>
+              </div>
+              <button
+                onClick={logout}
+                className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => openModal('auth')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+          )}
+
+          {/* Settings button */}
           <button
             onClick={() => setActiveSection('settings')}
-            className={`p-2 rounded-xl transition-colors ${
+            className={`p-2 rounded-xl transition-colors cursor-pointer ${
               activeSection === 'settings'
-                ? 'bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400 font-bold'
+                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 font-bold'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
             title="Settings"
@@ -63,20 +128,10 @@ export const Header: React.FC = () => {
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}
-            className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Toggle theme"
+            className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Toggle Theme (Instant)"
           >
             {settings.theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-
-          {/* Demo Reset button */}
-          <button
-            onClick={resetAllData}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
-            title="Reset to demo dataset"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-            <span>Reset Demo</span>
           </button>
         </div>
       </div>

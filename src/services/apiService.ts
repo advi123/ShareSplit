@@ -1,4 +1,4 @@
-import { Person, Expense, Week, GroupSettings, Bill } from '../types';
+import { Person, Expense, Week, GroupSettings, Bill, AuthResponse, GroupBrief } from '../types';
 
 export const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://127.0.0.1:8000/api';
 
@@ -45,6 +45,31 @@ export function decodeNotesWithMeta(rawNotes: string | undefined): { notes?: str
   }
 }
 
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = localStorage.getItem('sharesplit_token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const groupId = localStorage.getItem('sharesplit_active_group_id');
+  if (groupId) {
+    headers['X-Group-Id'] = groupId;
+  }
+  return headers;
+}
+
+export async function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  const authHeaders = getAuthHeaders();
+  const mergedHeaders = {
+    ...authHeaders,
+    ...(init?.headers || {})
+  };
+  return fetch(url, {
+    ...init,
+    headers: mergedHeaders
+  });
+}
+
 async function handleResponse(res: Response) {
   if (!res.ok) {
     let detail = 'API Request Failed';
@@ -69,28 +94,95 @@ function parseExpenseFromApi(e: any): Expense {
     splitType: meta?.splitType,
     paidByMap: meta?.paidByMap,
     customShares: meta?.customShares,
-    isSettled: meta?.isSettled || false,
+    isSettled: meta?.isSettled,
     source: e.source,
     paidBy: e.paid_by,
     totalAmount: e.total_amount,
-    participants: e.participants,
-    items: e.items?.map((i: any) => ({
-      id: i.id,
-      name: i.name,
-      amount: i.amount,
-      participants: i.participants
-    })) || [],
-    notes: decodedNotes || '',
-    billId: e.bill_id,
-    weekId: e.week_id,
-    createdAt: e.created_at
+    participants: e.participants ? e.participants.map((p: any) => p.member_id) : [],
+    items: e.items
+      ? e.items.map((i: any) => ({
+          id: i.id,
+          name: i.name,
+          amount: i.amount,
+          participants: i.participants ? i.participants.map((ip: any) => ip.member_id) : []
+        }))
+      : undefined,
+    notes: decodedNotes,
+    billId: e.bill_id || null,
+    createdAt: e.created_at,
+    weekId: e.week_id
   };
 }
 
 export const apiService = {
+  auth: {
+    async register(data: { email: string; password: string; name: string; group_name?: string; invite_code?: string }): Promise<AuthResponse> {
+      const res = await fetch(`${BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const dataRes = await handleResponse(res);
+      if (dataRes.access_token) {
+        localStorage.setItem('sharesplit_token', dataRes.access_token);
+        if (dataRes.active_group_id) {
+          localStorage.setItem('sharesplit_active_group_id', dataRes.active_group_id);
+        }
+      }
+      return dataRes;
+    },
+
+    async login(data: { email: string; password: string }): Promise<AuthResponse> {
+      const res = await fetch(`${BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const dataRes = await handleResponse(res);
+      if (dataRes.access_token) {
+        localStorage.setItem('sharesplit_token', dataRes.access_token);
+        if (dataRes.active_group_id) {
+          localStorage.setItem('sharesplit_active_group_id', dataRes.active_group_id);
+        }
+      }
+      return dataRes;
+    },
+
+    async getMe(): Promise<AuthResponse> {
+      const res = await authFetch(`${BASE_URL}/auth/me`);
+      return handleResponse(res);
+    },
+
+    logout() {
+      localStorage.removeItem('sharesplit_token');
+      localStorage.removeItem('sharesplit_active_group_id');
+      localStorage.removeItem('sharesplit_cached_data_v1');
+    }
+  },
+
+  groups: {
+    async create(name: string, currency = '₹'): Promise<GroupBrief> {
+      const res = await authFetch(`${BASE_URL}/groups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, currency })
+      });
+      return handleResponse(res);
+    },
+
+    async join(inviteCode: string): Promise<GroupBrief> {
+      const res = await authFetch(`${BASE_URL}/groups/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invite_code: inviteCode })
+      });
+      return handleResponse(res);
+    }
+  },
+
   members: {
     async getAll(includeInactive = true): Promise<Person[]> {
-      const res = await fetch(`${BASE_URL}/members?include_inactive=${includeInactive}`);
+      const res = await authFetch(`${BASE_URL}/members?include_inactive=${includeInactive}`);
       const data = await handleResponse(res);
       return data.map((m: any) => ({
         id: m.id,
@@ -104,7 +196,7 @@ export const apiService = {
     },
 
     async create(name: string, nickname = '', color = 'bg-slate-500'): Promise<Person> {
-      const res = await fetch(`${BASE_URL}/members`, {
+      const res = await authFetch(`${BASE_URL}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, nickname, color })
@@ -122,7 +214,7 @@ export const apiService = {
     },
 
     async update(id: string, name: string, nickname: string, avatar: string, color: string): Promise<Person> {
-      const res = await fetch(`${BASE_URL}/members/${id}`, {
+      const res = await authFetch(`${BASE_URL}/members/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, nickname, avatar, color })
@@ -140,7 +232,7 @@ export const apiService = {
     },
 
     async reactivate(id: string): Promise<Person> {
-      const res = await fetch(`${BASE_URL}/members/${id}/reactivate`, { method: 'POST' });
+      const res = await authFetch(`${BASE_URL}/members/${id}/reactivate`, { method: 'POST' });
       const m = await handleResponse(res);
       return {
         id: m.id,
@@ -154,57 +246,60 @@ export const apiService = {
     },
 
     async delete(id: string): Promise<{ action: 'deleted' | 'deactivated' }> {
-      const res = await fetch(`${BASE_URL}/members/${id}`, { method: 'DELETE' });
+      const res = await authFetch(`${BASE_URL}/members/${id}`, { method: 'DELETE' });
       return handleResponse(res);
     }
   },
 
   expenses: {
     async getOne(id: string): Promise<Expense> {
-      const res = await fetch(`${BASE_URL}/expenses/${id}`);
+      const res = await authFetch(`${BASE_URL}/expenses/${id}`);
       if (res.status === 404) {
-        const errMsg = `Expense not found. Requested ID: ${id}, Group ID: default-group, Endpoint: GET /api/expenses/${id}`;
+        const errMsg = `Expense not found. Requested ID: ${id}, Endpoint: GET /api/expenses/${id}`;
         console.error(errMsg);
-        alert(errMsg);
         throw new Error(errMsg);
       }
-      const e = await handleResponse(res);
-      return parseExpenseFromApi(e);
+      const data = await handleResponse(res);
+      return parseExpenseFromApi(data);
     },
 
     async getAll(): Promise<Expense[]> {
-      const res = await fetch(`${BASE_URL}/expenses`);
+      const res = await authFetch(`${BASE_URL}/expenses`);
       const data = await handleResponse(res);
       return data.map(parseExpenseFromApi);
     },
 
-    async create(expense: Omit<Expense, 'id' | 'weekId'>): Promise<Expense> {
-      const encodedNotes = encodeNotesWithMeta(expense.notes, {
+    async create(expense: Expense): Promise<Expense> {
+      const meta: SplitMeta = {
         paidByMap: expense.paidByMap,
         customShares: expense.customShares,
-        splitType: expense.splitType,
+        splitType: expense.splitType || (expense.type === 'custom' ? 'unequal' : undefined),
         isSettled: expense.isSettled
-      });
+      };
+
+      const encodedNotes = encodeNotesWithMeta(expense.notes, meta);
 
       const payload = {
         description: expense.description,
+        total_amount: expense.totalAmount,
+        paid_by: expense.paidBy,
         category: expense.category,
         date: expense.date,
-        type: expense.type,
-        paid_by: expense.paidBy,
-        total_amount: expense.totalAmount,
+        type: expense.type === 'itemized' ? 'itemized' : 'simple',
+        source: expense.source,
         notes: encodedNotes,
-        source: expense.source || 'manual',
-        bill_id: expense.billId || null,
         participants: expense.participants,
-        items: expense.items?.map((i) => ({
-          name: i.name,
-          amount: i.amount,
-          participants: i.participants
-        })) || []
+        items: expense.items
+          ? expense.items.map((i) => ({
+              name: i.name,
+              amount: i.amount,
+              participants: i.participants
+            }))
+          : undefined,
+        bill_id: expense.billId || undefined
       };
 
-      const res = await fetch(`${BASE_URL}/expenses`, {
+      const res = await authFetch(`${BASE_URL}/expenses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -213,33 +308,37 @@ export const apiService = {
       return parseExpenseFromApi(data);
     },
 
-    async update(id: string, expense: Omit<Expense, 'id' | 'weekId'>): Promise<Expense> {
-      const encodedNotes = encodeNotesWithMeta(expense.notes, {
+    async update(id: string, expense: Partial<Expense>): Promise<Expense> {
+      const meta: SplitMeta = {
         paidByMap: expense.paidByMap,
         customShares: expense.customShares,
-        splitType: expense.splitType,
+        splitType: expense.splitType || (expense.type === 'custom' ? 'unequal' : undefined),
         isSettled: expense.isSettled
-      });
+      };
+
+      const encodedNotes = encodeNotesWithMeta(expense.notes, meta);
 
       const payload = {
         description: expense.description,
+        total_amount: expense.totalAmount,
+        paid_by: expense.paidBy,
         category: expense.category,
         date: expense.date,
-        type: expense.type,
-        paid_by: expense.paidBy,
-        total_amount: expense.totalAmount,
+        type: expense.type === 'itemized' ? 'itemized' : 'simple',
+        source: expense.source,
         notes: encodedNotes,
-        source: expense.source || 'manual',
-        bill_id: expense.billId || null,
         participants: expense.participants,
-        items: expense.items?.map((i) => ({
-          name: i.name,
-          amount: i.amount,
-          participants: i.participants
-        })) || []
+        items: expense.items
+          ? expense.items.map((i) => ({
+              name: i.name,
+              amount: i.amount,
+              participants: i.participants
+            }))
+          : undefined,
+        bill_id: expense.billId || undefined
       };
 
-      const res = await fetch(`${BASE_URL}/expenses/${id}`, {
+      const res = await authFetch(`${BASE_URL}/expenses/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -249,14 +348,14 @@ export const apiService = {
     },
 
     async delete(id: string): Promise<void> {
-      const res = await fetch(`${BASE_URL}/expenses/${id}`, { method: 'DELETE' });
+      const res = await authFetch(`${BASE_URL}/expenses/${id}`, { method: 'DELETE' });
       await handleResponse(res);
     }
   },
 
   bills: {
     async getAll(): Promise<Bill[]> {
-      const res = await fetch(`${BASE_URL}/bills`);
+      const res = await authFetch(`${BASE_URL}/bills`);
       const data = await handleResponse(res);
       return data.map((b: any) => ({
         id: b.id,
@@ -287,7 +386,7 @@ export const apiService = {
       const formData = new FormData();
       formData.append('files', file);
 
-      const res = await fetch(`${BASE_URL}/bills/upload`, {
+      const res = await authFetch(`${BASE_URL}/bills/upload`, {
         method: 'POST',
         body: formData
       });
@@ -304,7 +403,7 @@ export const apiService = {
     },
 
     async delete(id: string): Promise<void> {
-      const res = await fetch(`${BASE_URL}/bills/${id}`, { method: 'DELETE' });
+      const res = await authFetch(`${BASE_URL}/bills/${id}`, { method: 'DELETE' });
       await handleResponse(res);
     },
 
@@ -317,7 +416,7 @@ export const apiService = {
       discount?: number;
       items: { name: string; amount: number }[];
     }> {
-      const res = await fetch(`${BASE_URL}/bills/parse-ai`, {
+      const res = await authFetch(`${BASE_URL}/bills/parse-ai`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -334,7 +433,7 @@ export const apiService = {
 
   weeks: {
     async getAll(): Promise<Week[]> {
-      const res = await fetch(`${BASE_URL}/weeks`);
+      const res = await authFetch(`${BASE_URL}/weeks`);
       const data = await handleResponse(res);
       return data.map((w: any) => ({
         id: w.id,
@@ -347,40 +446,41 @@ export const apiService = {
     },
 
     async close(id: string): Promise<void> {
-      const res = await fetch(`${BASE_URL}/weeks/${id}/close`, { method: 'POST' });
+      const res = await authFetch(`${BASE_URL}/weeks/${id}/close`, { method: 'POST' });
       await handleResponse(res);
     },
 
     async reopen(id: string): Promise<void> {
-      const res = await fetch(`${BASE_URL}/weeks/${id}/reopen`, { method: 'POST' });
+      const res = await authFetch(`${BASE_URL}/weeks/${id}/reopen`, { method: 'POST' });
       await handleResponse(res);
     }
   },
 
   settings: {
     async get(): Promise<GroupSettings> {
-      const res = await fetch(`${BASE_URL}/settings`);
+      const res = await authFetch(`${BASE_URL}/settings`);
       const s = await handleResponse(res);
-      const geminiKey = s.gemini_api_key || localStorage.getItem('sharesplit_gemini_api_key') || undefined;
-      if (s.gemini_api_key) {
-        localStorage.setItem('sharesplit_gemini_api_key', s.gemini_api_key);
-      }
+      const localTheme = localStorage.getItem('sharesplit_theme') as 'light' | 'dark' | 'system' || 'light';
       return {
         groupName: s.group_name,
         currency: s.currency,
         weekStartsOn: s.week_starts_on,
-        defaultCategory: s.default_category,
-        theme: (localStorage.getItem('sharesplit_theme') as 'light' | 'dark' | 'system') || 'light',
-        geminiApiKey: geminiKey
+        defaultCategory: s.default_category || 'Groceries',
+        theme: localTheme,
+        geminiApiKey: s.gemini_api_key || undefined
       };
     },
 
-    async update(settings: GroupSettings): Promise<GroupSettings> {
-      localStorage.setItem('sharesplit_theme', settings.theme);
-      if (settings.geminiApiKey) {
-        localStorage.setItem('sharesplit_gemini_api_key', settings.geminiApiKey);
+    async save(settings: GroupSettings): Promise<GroupSettings> {
+      if (settings.theme) {
+        localStorage.setItem('sharesplit_theme', settings.theme);
+        if (settings.theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else if (settings.theme === 'light') {
+          document.documentElement.classList.remove('dark');
+        }
       }
-      const res = await fetch(`${BASE_URL}/settings`, {
+      const res = await authFetch(`${BASE_URL}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -388,32 +488,29 @@ export const apiService = {
           currency: settings.currency,
           week_starts_on: settings.weekStartsOn,
           default_category: settings.defaultCategory,
-          gemini_api_key: settings.geminiApiKey || null
+          gemini_api_key: settings.geminiApiKey || undefined
         })
       });
-      const s = await handleResponse(res);
-      return {
-        groupName: s.group_name,
-        currency: s.currency,
-        weekStartsOn: s.week_starts_on,
-        defaultCategory: s.default_category,
-        theme: settings.theme,
-        geminiApiKey: s.gemini_api_key || settings.geminiApiKey
-      };
+      await handleResponse(res);
+      return settings;
+    },
+
+    async update(settings: GroupSettings): Promise<GroupSettings> {
+      return this.save(settings);
     }
   },
 
   settlements: {
     async getDaily(date: string) {
-      const res = await fetch(`${BASE_URL}/settlements/daily?date=${date}`);
+      const res = await authFetch(`${BASE_URL}/settlements/daily?date=${date}`);
       return handleResponse(res);
     },
     async getWeekly(weekId: string) {
-      const res = await fetch(`${BASE_URL}/settlements/weekly/${weekId}`);
+      const res = await authFetch(`${BASE_URL}/settlements/weekly/${weekId}`);
       return handleResponse(res);
     },
     async getCustom(fromDate: string, toDate: string) {
-      const res = await fetch(`${BASE_URL}/settlements/custom?from_date=${fromDate}&to_date=${toDate}`);
+      const res = await authFetch(`${BASE_URL}/settlements/custom?from_date=${fromDate}&to_date=${toDate}`);
       return handleResponse(res);
     }
   }

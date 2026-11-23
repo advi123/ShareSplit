@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Expense, Person, Week, GroupSettings, NavSection, Bill } from '../types';
+import { Expense, Person, Week, GroupSettings, NavSection, Bill, User, GroupBrief } from '../types';
 import { storageService } from '../services/storageService';
+import { apiService } from '../services/apiService';
 
 interface Toast {
   id: string;
@@ -9,6 +10,20 @@ interface Toast {
 }
 
 interface AppContextType {
+  // Auth & Multi-Group
+  user: User | null;
+  isAuthenticated: boolean;
+  userGroups: GroupBrief[];
+  activeGroupId: string;
+  currentGroup: GroupBrief | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string, groupName?: string, inviteCode?: string) => Promise<void>;
+  logout: () => void;
+  switchGroup: (groupId: string) => Promise<void>;
+  createNewGroup: (name: string, currency?: string) => Promise<void>;
+  joinGroupWithCode: (inviteCode: string) => Promise<void>;
+
+  // Data
   expenses: Expense[];
   members: Person[];
   bills: Bill[];
@@ -34,6 +49,7 @@ interface AppContextType {
   toggleShowInactiveMembers: () => void;
 
   // Data Actions
+  loadAllData: () => Promise<void>;
   addOrUpdateExpense: (expense: Expense, forceReopen?: boolean) => Promise<void>;
   confirmReopenAndAddExpense: () => void;
   cancelReopenExpense: () => void;
@@ -69,6 +85,14 @@ const initialCache = getInitialCache();
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Auth state
+  const [user, setUser] = useState<User | null>(null);
+  const [userGroups, setUserGroups] = useState<GroupBrief[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<string>(
+    localStorage.getItem('sharesplit_active_group_id') || 'default-group'
+  );
+
+  // Group Data state
   const [members, setMembers] = useState<Person[]>(initialCache?.members || []);
   const [expenses, setExpenses] = useState<Expense[]>(initialCache?.expenses || []);
   const [bills, setBills] = useState<Bill[]>(initialCache?.bills || []);
@@ -94,8 +118,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [toast, setToast] = useState<Toast | null>(null);
 
   useEffect(() => {
-    loadAllData();
+    initApp();
   }, []);
+
+  const initApp = async () => {
+    const token = localStorage.getItem('sharesplit_token');
+    if (token) {
+      try {
+        const authData = await apiService.auth.getMe();
+        setUser(authData.user);
+        setUserGroups(authData.groups);
+        if (authData.active_group_id) {
+          setActiveGroupId(authData.active_group_id);
+          localStorage.setItem('sharesplit_active_group_id', authData.active_group_id);
+        }
+      } catch (err) {
+        console.warn('Auto auth validation failed:', err);
+      }
+    }
+    await loadAllData();
+  };
 
   useEffect(() => {
     if (settings.theme === 'dark') {
@@ -127,9 +169,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }));
       } catch {}
 
-      // Only ask about the past week which is NOT closed!
-      // Once entered as cleared, it is closed in the backend and never prompted again.
-      // Older weeks and already-closed weeks are never prompted.
       const immediatelyPrecedingWeek = data.historicalWeeks[0];
       if (
         immediatelyPrecedingWeek &&
@@ -144,6 +183,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('Failed to load data from API', err);
     }
   };
+
+  // Auth Functions
+  const login = async (email: string, password: string) => {
+    const res = await apiService.auth.login({ email, password });
+    setUser(res.user);
+    setUserGroups(res.groups);
+    setActiveGroupId(res.active_group_id);
+    closeModal();
+    showToast(`Welcome back, ${res.user.name}!`, 'success');
+    await loadAllData();
+  };
+
+  const register = async (email: string, password: string, name: string, groupName?: string, inviteCode?: string) => {
+    const res = await apiService.auth.register({ email, password, name, group_name: groupName, invite_code: inviteCode });
+    setUser(res.user);
+    setUserGroups(res.groups);
+    setActiveGroupId(res.active_group_id);
+    closeModal();
+    showToast(`Welcome to ShareSplit, ${res.user.name}!`, 'success');
+    await loadAllData();
+  };
+
+  const logout = () => {
+    apiService.auth.logout();
+    setUser(null);
+    setUserGroups([]);
+    setActiveGroupId('default-group');
+    showToast('Signed out successfully', 'info');
+    loadAllData();
+  };
+
+  const switchGroup = async (groupId: string) => {
+    localStorage.setItem('sharesplit_active_group_id', groupId);
+    setActiveGroupId(groupId);
+    const grp = userGroups.find((g) => g.id === groupId);
+    showToast(`Switched to "${grp?.name || 'Group'}"`, 'info');
+    await loadAllData();
+  };
+
+  const createNewGroup = async (name: string, currency = '₹') => {
+    const newGrp = await apiService.groups.create(name, currency);
+    setUserGroups((prev) => [...prev, newGrp]);
+    await switchGroup(newGrp.id);
+    closeModal();
+    showToast(`Created group "${name}"! Code: ${newGrp.inviteCode}`, 'success');
+  };
+
+  const joinGroupWithCode = async (inviteCode: string) => {
+    const joinedGrp = await apiService.groups.join(inviteCode);
+    setUserGroups((prev) => {
+      const exists = prev.some((g) => g.id === joinedGrp.id);
+      return exists ? prev : [...prev, joinedGrp];
+    });
+    await switchGroup(joinedGrp.id);
+    closeModal();
+    showToast(`Joined group "${joinedGrp.name}"!`, 'success');
+  };
+
+  const currentGroup = userGroups.find((g) => g.id === activeGroupId) || null;
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     const id = Date.now().toString();
@@ -183,27 +281,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.error('Failed to close week in backend:', err);
     }
+    setPendingPastWeekSettlement(null);
+    closeModal();
+    showToast('Past week settled! Clean fresh start for this week.', 'success');
     await loadAllData();
-    showToast('Week cleared and closed successfully!', 'success');
-    closeModal();
-    setPendingPastWeekSettlement(null);
   };
 
-  const dismissPastWeekSettledPrompt = async (weekId: string) => {
+  const dismissPastWeekSettledPrompt = (weekId: string) => {
     sessionStorage.setItem(`sharesplit_week_dismissed_${weekId}`, 'true');
-    closeModal();
     setPendingPastWeekSettlement(null);
-    showToast('Week kept active! You can settle and close it anytime from History.', 'info');
+    closeModal();
   };
 
-  const addOrUpdateExpense = async (expense: Expense, forceReopen = false) => {
+  const addOrUpdateExpense = async (expense: Expense, forceReopen: boolean = false) => {
     try {
       const isEditingExisting = !!(expense.id && !expense.id.startsWith('new-'));
       const { week, isClosed } = await storageService.getOrCreateWeekForDate(expense.date);
 
       if (isClosed && !forceReopen && !isEditingExisting) {
         setPendingReopen({ expense, week });
-        setActiveModal('reopen-week-warning');
+        openModal('reopen-week-confirm');
         return;
       }
 
@@ -211,37 +308,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await storageService.reopenWeek(week.id);
         localStorage.removeItem(`sharesplit_week_settled_${week.id}`);
         sessionStorage.removeItem(`sharesplit_week_dismissed_${week.id}`);
+        showToast(`Week ${week.startDate} to ${week.endDate} reopened to log expense.`);
       }
 
-      // Close modal immediately and update UI optimistically (0ms response)
-      closeModal();
-      setPendingReopen(null);
+      if (!expense.participants || expense.participants.length === 0) {
+        expense.participants = members.filter((m) => m.isActive !== false).map((m) => m.id);
+      }
 
-      const isNew = !expense.id || expense.id.startsWith('new-');
-      const optimisticId = isNew ? `temp-${Date.now()}` : expense.id;
-      const optimisticItem: Expense = {
-        ...expense,
-        id: optimisticId,
-        weekId: expense.weekId || week.id
-      };
-
-      setExpenses((prev) =>
-        isNew ? [optimisticItem, ...prev] : prev.map((e) => (e.id === expense.id ? optimisticItem : e))
-      );
+      expense.weekId = week.id;
 
       await storageService.saveExpense(expense);
       await loadAllData();
       showToast(`Expense "${expense.description}" saved!`, 'success');
+      closeModal();
     } catch (err: any) {
-      showToast(err.message || 'Failed to save expense', 'error');
-      await loadAllData();
+      console.error('Failed to save expense:', err);
+      showToast(err.message || 'Error saving expense. Please try again.', 'error');
     }
   };
 
   const confirmReopenAndAddExpense = async () => {
-    if (pendingReopen) {
-      await addOrUpdateExpense(pendingReopen.expense, true);
-    }
+    if (!pendingReopen) return;
+    const { expense, week } = pendingReopen;
+    setPendingReopen(null);
+    await addOrUpdateExpense(expense, true);
   };
 
   const cancelReopenExpense = () => {
@@ -251,28 +341,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteExpense = async (id: string) => {
     try {
-      const target = expenses.find((e) => e.id === id);
-      // Close modal and remove from UI immediately (0ms response)
-      closeModal();
-      setExpenses((prev) => prev.filter((e) => e.id !== id));
-      showToast(`Deleted expense "${target?.description || 'item'}"`, 'info');
-
       await storageService.deleteExpense(id);
       await loadAllData();
     } catch (err: any) {
-      showToast(err.message || 'Failed to delete expense', 'error');
-      await loadAllData();
+      console.error('Failed to delete expense:', err);
+      showToast(err.message || 'Error deleting expense', 'error');
     }
   };
 
-  const addMember = async (name: string, nickname = '', color = 'indigo') => {
+  const addMember = async (name: string, nickname = '', color = 'bg-slate-500') => {
     try {
       await storageService.addMember(name.trim(), nickname.trim(), color);
       await loadAllData();
       showToast(`Added new member "${name}"`);
-      closeModal();
     } catch (err: any) {
-      showToast(err.message || 'Failed to add member', 'error');
+      console.error('Failed to add member:', err);
+      showToast(err.message || 'Error adding member', 'error');
     }
   };
 
@@ -281,9 +365,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await storageService.updateMember(updatedMember);
       await loadAllData();
       showToast(`Updated details for "${updatedMember.name}"`);
-      closeModal();
     } catch (err: any) {
-      showToast(err.message || 'Failed to update member', 'error');
+      console.error('Failed to update member:', err);
+      showToast(err.message || 'Error updating member', 'error');
     }
   };
 
@@ -298,7 +382,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!target) return;
 
     setPendingRemoveMember(target);
-    setActiveModal('remove-member-confirm');
+    openModal('remove-member-confirm');
   };
 
   const confirmRemoveMember = async () => {
@@ -308,13 +392,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           pendingRemoveMember.id
         );
         await loadAllData();
-        if (wasDeactivated) {
-          showToast(`Deactivated "${pendingRemoveMember.name}" while retaining historical records.`, 'info');
-        } else if (wasDeleted) {
-          showToast(`Permanently removed "${pendingRemoveMember.name}".`, 'info');
+
+        if (wasDeleted) {
+          showToast(`Member "${pendingRemoveMember.name}" removed from group`);
+        } else if (wasDeactivated) {
+          showToast(
+            `Member "${pendingRemoveMember.name}" has recorded expenses. Moved to past inactive members so historical math remains exact.`
+          );
         }
       } catch (err: any) {
-        showToast(err.message || 'Failed to remove member', 'error');
+        console.error('Failed to remove member:', err);
+        showToast(err.message || 'Error removing member', 'error');
       }
       setPendingRemoveMember(null);
       closeModal();
@@ -334,7 +422,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(`Reactivated "${target?.name || 'member'}"`);
       closeModal();
     } catch (err: any) {
-      showToast(err.message || 'Failed to reactivate member', 'error');
+      console.error('Failed to reactivate member:', err);
+      showToast(err.message || 'Error reactivating member', 'error');
     }
   };
 
@@ -344,12 +433,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await loadAllData();
       return savedBill;
     } catch (err: any) {
-      showToast(err.message || 'Failed to upload receipt image', 'error');
+      console.error('Failed to save bill:', err);
+      showToast(err.message || 'Error saving bill', 'error');
       throw err;
     }
   };
 
-  const deleteBill = async (billId: string, deleteRelatedExpense = false) => {
+  const deleteBill = async (billId: string, deleteRelatedExpense: boolean = false) => {
     try {
       const targetBill = bills.find((b) => b.id === billId);
       await storageService.deleteBill(billId);
@@ -359,40 +449,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       await loadAllData();
-      showToast(`Deleted bill "${targetBill?.storeName || 'receipt'}"`, 'info');
+      showToast('Bill receipt deleted successfully');
       closeModal();
     } catch (err: any) {
-      showToast(err.message || 'Failed to delete bill', 'error');
+      console.error('Failed to delete bill:', err);
+      showToast(err.message || 'Error deleting bill', 'error');
     }
   };
 
   const toggleTheme = () => {
-    const nextTheme: GroupSettings['theme'] = settings.theme === 'dark' ? 'light' : 'dark';
-    if (nextTheme === 'dark') {
+    const current = settings.theme;
+    const next: 'light' | 'dark' | 'system' = current === 'dark' ? 'light' : 'dark';
+    if (next === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-    localStorage.setItem('sharesplit_theme', nextTheme);
-    const updated = { ...settings, theme: nextTheme };
+    const updated: GroupSettings = { ...settings, theme: next };
     setSettings(updated);
     storageService.saveSettings(updated).catch(() => {});
   };
 
   const updateSettings = async (newSettings: GroupSettings) => {
-    setSettings(newSettings);
     if (newSettings.theme === 'dark') {
       document.documentElement.classList.add('dark');
-    } else {
+    } else if (newSettings.theme === 'light') {
       document.documentElement.classList.remove('dark');
     }
-    localStorage.setItem('sharesplit_theme', newSettings.theme);
-
+    setSettings(newSettings);
     try {
       await storageService.saveSettings(newSettings);
       showToast('Group settings updated');
     } catch (err: any) {
-      showToast(err.message || 'Failed to save settings', 'error');
+      console.error('Failed to save settings:', err);
+      showToast('Saved locally, but API failed', 'info');
     }
   };
 
@@ -402,9 +492,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await loadAllData();
       showToast('Week archived! Started new week', 'success');
       closeModal();
-      setActiveSection('history');
     } catch (err: any) {
-      showToast(err.message || 'Failed to close week', 'error');
+      console.error('Failed to close week:', err);
+      showToast(err.message || 'Error closing week', 'error');
     }
   };
 
@@ -413,15 +503,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await storageService.clearAllDataToFreshStart();
       await loadAllData();
       showToast('Fresh start: Cleared all expenses and reset to 0 balance', 'info');
-      closeModal();
     } catch (err: any) {
-      showToast(err.message || 'Failed to reset data', 'error');
+      console.error('Failed to reset data:', err);
+      showToast('Reset failed', 'error');
     }
   };
 
   return (
     <AppContext.Provider
       value={{
+        user,
+        isAuthenticated: !!user,
+        userGroups,
+        activeGroupId,
+        currentGroup,
+        login,
+        register,
+        logout,
+        switchGroup,
+        createNewGroup,
+        joinGroupWithCode,
+        loadAllData,
         expenses,
         members,
         bills,

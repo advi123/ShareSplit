@@ -18,7 +18,7 @@ const CATEGORIES: ExpenseCategory[] = [
 ];
 
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings, resetAllData } = useApp();
+  const { settings, updateSettings, resetAllData, toggleTheme: appToggleTheme } = useApp();
 
   const [formData, setFormData] = useState<GroupSettings>(settings);
 
@@ -33,9 +33,8 @@ export const SettingsView: React.FC = () => {
 
   const toggleTheme = () => {
     const nextTheme: GroupSettings['theme'] = formData.theme === 'dark' ? 'light' : 'dark';
-    const updated: GroupSettings = { ...formData, theme: nextTheme };
-    setFormData(updated);
-    updateSettings(updated);
+    setFormData({ ...formData, theme: nextTheme });
+    appToggleTheme();
   };
 
   return (

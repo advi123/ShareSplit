@@ -9,8 +9,7 @@ import {
   History,
   Users,
   Settings,
-  Upload,
-  Sparkles
+  Upload
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { NavSection } from '../../types';
@@ -91,19 +90,6 @@ export const Sidebar: React.FC = () => {
           );
         })}
       </nav>
-
-      {/* Footer Info */}
-      <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-        <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200/60 dark:border-slate-800">
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="w-3.5 h-3.5 text-slate-500" />
-            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Phase 1 Complete</span>
-          </div>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-            IndexedDB receipts & dynamic settlement calculations.
-          </p>
-        </div>
-      </div>
     </aside>
   );
 };

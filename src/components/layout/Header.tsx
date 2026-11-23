@@ -3,12 +3,7 @@ import { Calendar, Moon, Sun, RefreshCw, Settings as SettingsIcon } from 'lucide
 import { useApp } from '../../context/AppContext';
 
 export const Header: React.FC = () => {
-  const { currentWeek, settings, updateSettings, resetAllData, activeSection, setActiveSection } = useApp();
-
-  const toggleTheme = () => {
-    const nextTheme = settings.theme === 'dark' ? 'light' : 'dark';
-    updateSettings({ ...settings, theme: nextTheme });
-  };
+  const { currentWeek, settings, toggleTheme, resetAllData, activeSection, setActiveSection } = useApp();
 
   const formatDateRange = (start: string, end: string) => {
     if (!start || !end) return 'Current Week';

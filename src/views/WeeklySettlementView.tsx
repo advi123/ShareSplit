@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { Archive, Calendar, ShieldCheck, CheckCircle2, Plus, Sliders, History } from 'lucide-react';
+import { Archive, Calendar, ShieldCheck, CheckCircle2, Plus, Sliders, History, Share2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { calculateNetBalances, simplifyDebts } from '../services/settlementEngine';
 import { SettlementTransactionCard } from '../components/settlement/SettlementTransactionCard';
 import { CustomSettlementCard } from '../components/settlement/CustomSettlementCard';
 import { EmptyState } from '../components/common/EmptyState';
+import { shareOrDownloadReceipt } from '../utils/shareSettlementReceipt';
 
 export const WeeklySettlementView: React.FC = () => {
-  const { expenses, members, currentWeek, settings, openModal, setActiveSection } = useApp();
+  const { expenses, members, currentWeek, settings, openModal, setActiveSection, showToast } = useApp();
 
   const [activeTab, setActiveTab] = useState<'weekly' | 'custom'>('weekly');
+  const [isSharing, setIsSharing] = useState(false);
 
   const currency = settings.currency;
   const weekExpenses = expenses.filter((e) => e.weekId === currentWeek.id || !e.weekId);
@@ -23,6 +25,30 @@ export const WeeklySettlementView: React.FC = () => {
   });
 
   const finalSimplifiedTransactions = simplifyDebts(netBalancesNumeric, weekExpenses, members);
+
+  const handleShareReceipt = async () => {
+    setIsSharing(true);
+    const txs = finalSimplifiedTransactions.map((tx) => {
+      const debtor = members.find((m) => m.id === tx.from);
+      const creditor = members.find((m) => m.id === tx.to);
+      return {
+        fromName: debtor ? debtor.name : 'Unknown',
+        toName: creditor ? creditor.name : 'Unknown',
+        amount: tx.amount
+      };
+    });
+
+    await shareOrDownloadReceipt(
+      {
+        title: 'Weekly Net Settlement',
+        dateRange: `${currentWeek.startDate} to ${currentWeek.endDate}`,
+        currency,
+        transactions: txs
+      },
+      showToast
+    );
+    setIsSharing(false);
+  };
 
   return (
     <div className="space-y-8 pb-12 animate-in fade-in duration-300">
@@ -261,10 +287,19 @@ export const WeeklySettlementView: React.FC = () => {
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-slate-800 flex justify-end">
+                <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    onClick={handleShareReceipt}
+                    disabled={isSharing}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>{isSharing ? 'Generating Receipt...' : 'Share Receipt (Image)'}</span>
+                  </button>
+
                   <button
                     onClick={() => openModal('close-week')}
-                    className="flex items-center gap-2 px-6 py-3 bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs rounded-xl shadow-lg transition-transform active:scale-95"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs rounded-xl shadow-lg transition-transform active:scale-95"
                   >
                     <Archive className="w-4 h-4 text-slate-700" />
                     <span>Close & Archive This Week</span>

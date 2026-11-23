@@ -49,6 +49,7 @@ interface AppContextType {
   saveBill: (bill: Bill, imageData?: string) => Promise<Bill>;
   deleteBill: (billId: string, deleteRelatedExpense?: boolean) => Promise<void>;
   updateSettings: (newSettings: GroupSettings) => void;
+  toggleTheme: () => void;
   closeCurrentWeek: () => void;
   resetAllData: () => void;
 }
@@ -365,10 +366,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const toggleTheme = () => {
+    const nextTheme: GroupSettings['theme'] = settings.theme === 'dark' ? 'light' : 'dark';
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('sharesplit_theme', nextTheme);
+    const updated = { ...settings, theme: nextTheme };
+    setSettings(updated);
+    storageService.saveSettings(updated).catch(() => {});
+  };
+
   const updateSettings = async (newSettings: GroupSettings) => {
+    setSettings(newSettings);
+    if (newSettings.theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('sharesplit_theme', newSettings.theme);
+
     try {
       await storageService.saveSettings(newSettings);
-      await loadAllData();
       showToast('Group settings updated');
     } catch (err: any) {
       showToast(err.message || 'Failed to save settings', 'error');
@@ -437,6 +458,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveBill,
         deleteBill,
         updateSettings,
+        toggleTheme,
         closeCurrentWeek,
         resetAllData
       }}

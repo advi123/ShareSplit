@@ -9,6 +9,8 @@ interface Props {
 }
 
 export const BalanceSummaryCard: React.FC<Props> = ({ members, netBalances, currency }) => {
+  const activeMembers = members.filter((m) => m.isActive !== false);
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
       <div className="flex items-center justify-between">
@@ -19,7 +21,7 @@ export const BalanceSummaryCard: React.FC<Props> = ({ members, netBalances, curr
       </div>
 
       <div className="space-y-2.5">
-        {members.map((member) => {
+        {activeMembers.map((member) => {
           const balance = netBalances[member.id] || 0;
           const isSettled = Math.abs(balance) <= 0.01;
           const isCredit = balance > 0.01;

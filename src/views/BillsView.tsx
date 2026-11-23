@@ -19,27 +19,49 @@ export const BillsView: React.FC = () => {
   const currency = settings.currency;
   const allWeeks = [currentWeek, ...historicalWeeks];
 
+  const activeMembers = members.filter((m) => m.isActive !== false);
+
   const filteredBills = bills.filter((bill) => {
-    const titleMatch = (bill.storeName || bill.fileName).toLowerCase().includes(searchTerm.toLowerCase());
+    const term = searchTerm.toLowerCase().trim();
+    const payer = members.find((m) => m.id === bill.paidBy);
+    const payerName = payer ? payer.name.toLowerCase() : (bill.paidByName || '').toLowerCase();
+    const billDate = bill.date || (bill.uploadedAt ? bill.uploadedAt.split('T')[0] : '');
+    const formattedDate = billDate
+      ? new Date(billDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toLowerCase()
+      : '';
+    const uploadedDate = bill.uploadedAt
+      ? new Date(bill.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toLowerCase()
+      : '';
+
+    const titleMatch =
+      term === '' ||
+      (bill.storeName || '').toLowerCase().includes(term) ||
+      (bill.fileName || '').toLowerCase().includes(term) ||
+      payerName.includes(term) ||
+      billDate.includes(term) ||
+      formattedDate.includes(term) ||
+      uploadedDate.includes(term) ||
+      (bill.category || '').toLowerCase().includes(term);
+
     const memberMatch = selectedMember === 'all' || bill.paidBy === selectedMember;
     const categoryMatch = selectedCategory === 'all' || bill.category === selectedCategory;
 
-    // Week Filter
+    // Week Filter (Bypassed if search term is active so searching finds bills from any date)
     let weekMatch = true;
-    if (selectedWeekId !== 'all') {
+    if (selectedWeekId !== 'all' && !term) {
       const targetWeek = allWeeks.find((w) => w.id === selectedWeekId);
-      if (targetWeek && bill.date) {
-        weekMatch = bill.date >= targetWeek.startDate && bill.date <= targetWeek.endDate;
+      if (targetWeek && billDate) {
+        weekMatch = billDate >= targetWeek.startDate && billDate <= targetWeek.endDate;
       }
     }
 
     // Date Range Filter
     let rangeMatch = true;
-    if (startDateFilter && bill.date) {
-      rangeMatch = rangeMatch && bill.date >= startDateFilter;
+    if (startDateFilter && billDate) {
+      rangeMatch = rangeMatch && billDate >= startDateFilter;
     }
-    if (endDateFilter && bill.date) {
-      rangeMatch = rangeMatch && bill.date <= endDateFilter;
+    if (endDateFilter && billDate) {
+      rangeMatch = rangeMatch && billDate <= endDateFilter;
     }
 
     return titleMatch && memberMatch && categoryMatch && weekMatch && rangeMatch;
@@ -156,7 +178,7 @@ export const BillsView: React.FC = () => {
               className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 text-xs font-medium"
             >
               <option value="all">All Members</option>
-              {members.map((m) => (
+              {activeMembers.map((m) => (
                 <option key={m.id} value={m.id}>
                   Paid by {m.name}
                 </option>

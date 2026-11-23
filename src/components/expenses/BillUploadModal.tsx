@@ -287,10 +287,12 @@ export const BillUploadModal: React.FC = () => {
   const [showKeyModal, setShowKeyModal] = useState<boolean>(false);
   const [keyPendingAction, setKeyPendingAction] = useState<(() => void) | null>(null);
 
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
-    const savedKey = localStorage.getItem('sharesplit_gemini_api_key') || '';
+    const savedKey = settings.geminiApiKey || localStorage.getItem('sharesplit_gemini_api_key') || '';
     setGeminiKeyInput(savedKey);
-  }, []);
+  }, [settings.geminiApiKey]);
 
   if (activeModal !== 'upload-bill') return null;
 
@@ -318,11 +320,11 @@ export const BillUploadModal: React.FC = () => {
           if (aiResult.handlingFee !== undefined) item.handlingFee = Number(aiResult.handlingFee) || 0;
           if (aiResult.discount !== undefined) item.discount = Number(aiResult.discount) || 0;
 
-          if (Array.isArray(aiResult.items)) {
+          if (Array.isArray(aiResult.items) && aiResult.items.length > 0) {
             item.items = aiResult.items.map((it, iIdx) => ({
               id: `item-ai-${Date.now()}-${idx}-${iIdx}`,
               name: it.name || `Item ${iIdx + 1}`,
-              amount: Number(it.amount) || 0,
+              amount: Number(Number(it.amount).toFixed(2)) || 0,
               participants: activeMembers.map((m) => m.id)
             }));
           }
@@ -340,8 +342,6 @@ export const BillUploadModal: React.FC = () => {
       if (msg.toLowerCase().includes('api key') || msg.toLowerCase().includes('gemini api key is required')) {
         setKeyPendingAction(() => () => handleRunAIVision(itemsToScan.length === 1 ? currentQueueIndex : undefined));
         setShowKeyModal(true);
-      } else {
-        alert(msg || 'AI Vision failed to read receipt. Please verify your free Gemini API key.');
       }
     } finally {
       setIsProcessing(false);
@@ -389,6 +389,10 @@ export const BillUploadModal: React.FC = () => {
 
         setBillQueue(queueItems);
         setCurrentQueueIndex(0);
+
+        // Instantly analyze receipt with Gemini AI
+        const apiKey = settings.geminiApiKey || localStorage.getItem('sharesplit_gemini_api_key') || geminiKeyInput.trim();
+        await runAIScanOnItems(queueItems, apiKey);
       } catch (err) {
         console.error('Image pre-processing failed:', err);
       } finally {
@@ -554,32 +558,104 @@ export const BillUploadModal: React.FC = () => {
     : 0;
 
   const handleSaveAllExpenses = async () => {
+    if (isSaving) return;
+
     for (let i = 0; i < billQueue.length; i++) {
-      const qItem = billQueue[i];
-      const itemsSub = qItem.items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-      const totalAmt = Math.max(
+      const q = billQueue[i];
+      const itemsSum = q.items.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+      const computedTotal = Math.max(
         0,
-        itemsSub +
-          Number(qItem.deliveryFee || 0) +
-          Number(qItem.handlingFee || 0) -
-          Number(qItem.discount || 0)
+        itemsSum +
+          Number(q.deliveryFee || 0) +
+          Number(q.handlingFee || 0) -
+          Number(q.discount || 0)
       );
-      const allParticipants = Array.from(new Set(qItem.items.flatMap((it) => it.participants)));
+      if (computedTotal <= 0) {
+        alert(`Bill #${i + 1} (${q.storeName}) has a total amount of ₹0. Please enter item amounts before saving.`);
+        return;
+      }
+    }
 
-      const newBill: Bill = {
-        id: '',
-        expenseId: '',
-        fileName: qItem.file.name,
-        storeName: qItem.storeName,
-        category: qItem.category,
-        totalAmount: totalAmt,
-        paidBy: qItem.paidBy,
-        date: qItem.date,
-        uploadedAt: new Date().toISOString(),
-        imageData: qItem.originalPreview
-      };
+    setIsSaving(true);
+    setProcessingStatus('Saving bills and creating linked expenses...');
 
-      try {
+    try {
+      for (let i = 0; i < billQueue.length; i++) {
+        const qItem = billQueue[i];
+        const allParticipants = Array.from(new Set(qItem.items.flatMap((it) => it.participants)));
+        const finalParticipants = allParticipants.length > 0 ? allParticipants : activeMembers.map((m) => m.id);
+
+        let finalItems: ItemizedExpenseItem[] = [];
+        let finalTotal = 0;
+
+        if (qItem.items.length > 0) {
+          finalItems = qItem.items.map((it) => ({
+            ...it,
+            amount: Number(Number(it.amount).toFixed(2)),
+            participants: it.participants.length > 0 ? it.participants : finalParticipants
+          }));
+
+          if (Number(qItem.deliveryFee) > 0) {
+            finalItems.push({
+              id: `item-del-${Date.now()}-${i}`,
+              name: 'Delivery & Surge Fee',
+              amount: Number(Number(qItem.deliveryFee).toFixed(2)),
+              participants: finalParticipants
+            });
+          }
+
+          if (Number(qItem.handlingFee) > 0) {
+            finalItems.push({
+              id: `item-hand-${Date.now()}-${i}`,
+              name: 'Handling & Platform Fee',
+              amount: Number(Number(qItem.handlingFee).toFixed(2)),
+              participants: finalParticipants
+            });
+          }
+
+          if (Number(qItem.discount) > 0) {
+            const disc = Number(qItem.discount);
+            const sub = finalItems.reduce((s, it) => s + it.amount, 0);
+            if (sub > disc) {
+              let applied = 0;
+              finalItems = finalItems.map((it, idx) => {
+                if (idx === finalItems.length - 1) {
+                  const rem = Math.round((disc - applied) * 100) / 100;
+                  return { ...it, amount: Math.max(0.01, Math.round((it.amount - rem) * 100) / 100) };
+                }
+                const itDisc = Math.round(((it.amount / sub) * disc) * 100) / 100;
+                applied += itDisc;
+                return { ...it, amount: Math.max(0.01, Math.round((it.amount - itDisc) * 100) / 100) };
+              });
+            }
+          }
+
+          finalTotal = Number(finalItems.reduce((s, it) => s + it.amount, 0).toFixed(2));
+        } else {
+          const computed = Math.max(
+            0,
+            Number(qItem.deliveryFee || 0) + Number(qItem.handlingFee || 0) - Number(qItem.discount || 0)
+          );
+          finalTotal = Number(computed.toFixed(2));
+        }
+
+        if (finalTotal <= 0) {
+          throw new Error(`Total amount for ${qItem.storeName} must be greater than 0.`);
+        }
+
+        const newBill: Bill = {
+          id: '',
+          expenseId: '',
+          fileName: qItem.file.name,
+          storeName: qItem.storeName,
+          category: qItem.category,
+          totalAmount: finalTotal,
+          paidBy: qItem.paidBy,
+          date: qItem.date,
+          uploadedAt: new Date().toISOString(),
+          imageData: qItem.originalPreview
+        };
+
         const uploadedBill = await saveBill(newBill, qItem.originalPreview);
         const backendBillId = uploadedBill?.id || '';
 
@@ -589,24 +665,28 @@ export const BillUploadModal: React.FC = () => {
           date: qItem.date || todayStr,
           description: qItem.storeName,
           category: qItem.category,
-          type: 'itemized',
+          type: finalItems.length > 0 ? 'itemized' : 'simple',
           source: 'bill',
           paidBy: qItem.paidBy,
-          totalAmount: totalAmt,
-          participants: allParticipants.length > 0 ? allParticipants : activeMembers.map((m) => m.id),
+          totalAmount: finalTotal,
+          participants: finalParticipants,
           billId: backendBillId,
           createdAt: new Date().toISOString(),
-          items: qItem.items
+          items: finalItems.length > 0 ? finalItems : undefined
         };
 
         await apiService.expenses.create(newExpense);
-      } catch (err) {
-        console.error('Failed to save bill or expense record:', err);
       }
-    }
 
-    closeModal();
-    window.location.reload();
+      closeModal();
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Failed to save bill or expense record:', err);
+      alert(`Could not save expense: ${err.message || 'Please verify item amounts'}`);
+    } finally {
+      setIsSaving(false);
+      setProcessingStatus('');
+    }
   };
 
   const handleResetModal = () => {
@@ -1072,9 +1152,10 @@ export const BillUploadModal: React.FC = () => {
 
                 <button
                   onClick={handleSaveAllExpenses}
-                  className="px-6 py-2.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 rounded-xl shadow-2xs transition-colors duration-150"
+                  disabled={isSaving || currentFinalTotal <= 0}
+                  className="px-6 py-2.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 rounded-xl shadow-2xs transition-colors duration-150 disabled:opacity-40"
                 >
-                  Save All {billQueue.length} Expense(s)
+                  {isSaving ? 'Saving...' : `Save All ${billQueue.length} Expense(s)`}
                 </button>
               </div>
             </div>

@@ -13,15 +13,19 @@ interface Props {
 
 export const BillCard: React.FC<Props> = ({ bill, members, currency, onClick }) => {
   const [imageSrc, setImageSrc] = useState<string | null>(bill.imageData || null);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
+    setImageError(false);
     if (!bill.imageData) {
       imageStorageService.getImage(bill.id).then((data) => {
         if (isMounted && data) {
           setImageSrc(data);
         }
       });
+    } else {
+      setImageSrc(bill.imageData);
     }
     return () => {
       isMounted = false;
@@ -47,16 +51,17 @@ export const BillCard: React.FC<Props> = ({ bill, members, currency, onClick }) 
     >
       {/* Thumbnail Preview Box */}
       <div className="relative h-36 w-full rounded-xl bg-slate-100 dark:bg-slate-850 overflow-hidden border border-slate-200/60 dark:border-slate-800 flex items-center justify-center">
-        {imageSrc ? (
+        {imageSrc && !imageError ? (
           <img
             src={imageSrc}
             alt={bill.storeName || bill.fileName}
+            onError={() => setImageError(true)}
             className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
           <div className="text-center text-slate-400 p-4">
-            <FileText className="w-8 h-8 mx-auto mb-1 opacity-60" />
-            <span className="text-[10px] font-semibold">{bill.fileName}</span>
+            <FileText className="w-8 h-8 mx-auto mb-1 opacity-60 text-brand-500" />
+            <span className="text-[10px] font-semibold block truncate max-w-[140px]">{bill.storeName || bill.fileName}</span>
           </div>
         )}
 

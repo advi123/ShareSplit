@@ -133,7 +133,7 @@ export const CustomSettlementCard: React.FC = () => {
             </h4>
 
             <div className="space-y-2.5">
-              {members.map((m) => {
+              {members.filter((m) => m.isActive !== false).map((m) => {
                 const bd = netBalancesMap[m.id] || { totalPaid: 0, totalShare: 0, netBalance: 0 };
                 return (
                   <div

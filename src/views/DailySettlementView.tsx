@@ -103,7 +103,7 @@ export const DailySettlementView: React.FC = () => {
             Today's Member Payments (Who Paid)
           </h3>
           <div className="space-y-2">
-            {members.map((m) => {
+            {members.filter((m) => m.isActive !== false).map((m) => {
               const bd = dayNetBalancesMap[m.id] || { totalPaid: 0 };
               return (
                 <div
@@ -128,7 +128,7 @@ export const DailySettlementView: React.FC = () => {
             Today's Member Shares Incurred
           </h3>
           <div className="space-y-2">
-            {members.map((m) => {
+            {members.filter((m) => m.isActive !== false).map((m) => {
               const bd = dayNetBalancesMap[m.id] || { totalShare: 0 };
               return (
                 <div

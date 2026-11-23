@@ -361,17 +361,25 @@ export const apiService = {
     async get(): Promise<GroupSettings> {
       const res = await fetch(`${BASE_URL}/settings`);
       const s = await handleResponse(res);
+      const geminiKey = s.gemini_api_key || localStorage.getItem('sharesplit_gemini_api_key') || undefined;
+      if (s.gemini_api_key) {
+        localStorage.setItem('sharesplit_gemini_api_key', s.gemini_api_key);
+      }
       return {
         groupName: s.group_name,
         currency: s.currency,
         weekStartsOn: s.week_starts_on,
         defaultCategory: s.default_category,
-        theme: (localStorage.getItem('sharesplit_theme') as 'light' | 'dark' | 'system') || 'light'
+        theme: (localStorage.getItem('sharesplit_theme') as 'light' | 'dark' | 'system') || 'light',
+        geminiApiKey: geminiKey
       };
     },
 
     async update(settings: GroupSettings): Promise<GroupSettings> {
       localStorage.setItem('sharesplit_theme', settings.theme);
+      if (settings.geminiApiKey) {
+        localStorage.setItem('sharesplit_gemini_api_key', settings.geminiApiKey);
+      }
       const res = await fetch(`${BASE_URL}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -379,7 +387,8 @@ export const apiService = {
           group_name: settings.groupName,
           currency: settings.currency,
           week_starts_on: settings.weekStartsOn,
-          default_category: settings.defaultCategory
+          default_category: settings.defaultCategory,
+          gemini_api_key: settings.geminiApiKey || null
         })
       });
       const s = await handleResponse(res);
@@ -388,7 +397,8 @@ export const apiService = {
         currency: s.currency,
         weekStartsOn: s.week_starts_on,
         defaultCategory: s.default_category,
-        theme: settings.theme
+        theme: settings.theme,
+        geminiApiKey: s.gemini_api_key || settings.geminiApiKey
       };
     }
   },

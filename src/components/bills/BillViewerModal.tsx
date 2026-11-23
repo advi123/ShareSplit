@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ZoomIn, ZoomOut, RotateCcw, ExternalLink, Trash2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, ExternalLink, Trash2, Plus, FileText } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { useApp } from '../../context/AppContext';
 import { imageStorageService } from '../../services/imageStorageService';
@@ -8,10 +8,12 @@ export const BillViewerModal: React.FC = () => {
   const { activeModal, closeModal, selectedBill, expenses, openModal, settings } = useApp();
 
   const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
 
   useEffect(() => {
     let isMounted = true;
+    setImageError(false);
     if (selectedBill) {
       setZoomLevel(1);
       if (selectedBill.imageData) {
@@ -86,13 +88,24 @@ export const BillViewerModal: React.FC = () => {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
-            {relatedExpense && (
+            {relatedExpense ? (
               <button
                 onClick={handleOpenExpense}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-brand-700 dark:text-brand-300 bg-brand-100 dark:bg-brand-950 rounded-lg hover:bg-brand-200 dark:hover:bg-brand-900 transition-colors"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span>Open Related Expense</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  closeModal();
+                  openModal('add-expense');
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Create Related Expense</span>
               </button>
             )}
             <button
@@ -107,17 +120,26 @@ export const BillViewerModal: React.FC = () => {
 
         {/* Zoomable Image View Container */}
         <div className="relative h-[65vh] w-full rounded-2xl bg-slate-950 overflow-auto flex items-center justify-center p-4 border border-slate-800 shadow-inner">
-          {imageSrc ? (
+          {imageSrc && !imageError ? (
             <div className="transition-transform duration-200 origin-center" style={{ transform: `scale(${zoomLevel})` }}>
               <img
                 src={imageSrc}
                 alt={selectedBill.storeName || 'Bill receipt'}
+                onError={() => setImageError(true)}
                 className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-2xl"
               />
             </div>
           ) : (
-            <div className="text-center text-slate-400">
-              <p className="text-xs font-medium">Loading stored bill image from IndexedDB...</p>
+            <div className="text-center text-slate-400 p-6 space-y-2">
+              <FileText className="w-10 h-10 mx-auto text-slate-600" />
+              <p className="text-xs font-bold text-slate-300">
+                {imageError ? 'Receipt image unavailable' : 'Loading receipt image...'}
+              </p>
+              {imageError && (
+                <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                  This image was uploaded before permanent storage was enabled. You can safely delete this bill or link an expense to it.
+                </p>
+              )}
             </div>
           )}
         </div>

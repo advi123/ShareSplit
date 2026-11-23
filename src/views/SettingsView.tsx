@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, RefreshCw, Moon, Sun, Settings as SettingsIcon, Sparkles, ExternalLink } from 'lucide-react';
+import { Save, RefreshCw, Moon, Sun, Settings as SettingsIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ExpenseCategory, GroupSettings } from '../types';
 
@@ -21,22 +21,14 @@ export const SettingsView: React.FC = () => {
   const { settings, updateSettings, resetAllData } = useApp();
 
   const [formData, setFormData] = useState<GroupSettings>(settings);
-  const [geminiKey, setGeminiKey] = useState<string>('');
 
   useEffect(() => {
     setFormData(settings);
-    const savedKey = localStorage.getItem('sharesplit_gemini_api_key') || '';
-    setGeminiKey(savedKey);
   }, [settings]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (geminiKey.trim()) {
-      localStorage.setItem('sharesplit_gemini_api_key', geminiKey.trim());
-    } else {
-      localStorage.removeItem('sharesplit_gemini_api_key');
-    }
-    updateSettings({ ...formData, geminiApiKey: geminiKey.trim() });
+    updateSettings(formData);
   };
 
   const toggleTheme = () => {
@@ -131,42 +123,6 @@ export const SettingsView: React.FC = () => {
                 ))}
               </select>
             </div>
-          </div>
-        </div>
-
-        {/* Gemini Vision AI Scanner Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-              AI Receipt Scanner (Google Gemini Vision)
-            </h3>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Gemini API Key
-              </label>
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline inline-flex items-center gap-1"
-              >
-                Get Free API Key <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-            <input
-              type="password"
-              placeholder="Paste your Gemini API key (starts with AIzaSy...)"
-              value={geminiKey}
-              onChange={(e) => setGeminiKey(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 text-xs font-mono text-slate-900 dark:text-slate-100"
-            />
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Enables Gemini 1.5 Flash Vision to parse blurry, angled, and faint thermal receipts with 99%+ accuracy. Keys are saved securely in your browser.
-            </p>
           </div>
         </div>
 

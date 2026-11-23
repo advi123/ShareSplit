@@ -68,11 +68,15 @@ export const storageService = {
   },
 
   async removeOrDeactivateMember(id: string): Promise<{ wasDeactivated: boolean; wasDeleted: boolean }> {
-    const res = await apiService.members.delete(id);
+    await apiService.members.deactivate(id);
     return {
-      wasDeactivated: res.action === 'deactivated',
-      wasDeleted: res.action === 'deleted'
+      wasDeactivated: true,
+      wasDeleted: false
     };
+  },
+
+  async permanentlyDeleteMember(id: string): Promise<void> {
+    await apiService.members.delete(id, true);
   },
 
   // Settings

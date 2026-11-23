@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   TrendingUp,
   PlusCircle,
@@ -13,13 +13,20 @@ import {
   CheckCircle2,
   Copy,
   Check,
-  DollarSign
+  DollarSign,
+  Download
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { calculateNetBalances, simplifyDebts } from '../services/settlementEngine';
 import { ExpenseCard } from '../components/expenses/ExpenseCard';
 import { BalanceSummaryCard } from '../components/settlement/BalanceSummaryCard';
 import { SettlementTransactionCard } from '../components/settlement/SettlementTransactionCard';
+import {
+  shareOrDownloadReceipt,
+  downloadReceiptImage,
+  openWhatsApp
+} from '../utils/shareSettlementReceipt';
+import { Person } from '../types';
 
 export const DashboardView: React.FC = () => {
   const {
@@ -37,6 +44,8 @@ export const DashboardView: React.FC = () => {
   const currency = settings.currency;
   const activeMembers = members.filter((m) => m.isActive !== false);
   const [copiedSummary, setCopiedSummary] = useState(false);
+  const [isSharingImage, setIsSharingImage] = useState(false);
+  const [isDownloadingImage, setIsDownloadingImage] = useState(false);
 
   // -------------------------------------------------------------
   // TRIP MODE CALCULATIONS (Simple Overall Trip Expense Calculator)
@@ -53,6 +62,40 @@ export const DashboardView: React.FC = () => {
 
   const tripDebts = simplifyDebts(tripNetNumeric, tripExpenses, members);
 
+  // Group trip debts by debtor (the person who owes)
+  const groupedTripDebts = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        payer: Person;
+        debts: { to: string; toName: string; amount: number }[];
+        total: number;
+      }
+    >();
+
+    tripDebts.forEach((debt) => {
+      const payerMem = members.find((m) => m.id === debt.from) || {
+        id: debt.from,
+        name: 'Unknown',
+        nickname: '',
+        color: 'bg-rose-500',
+        joinedAt: '',
+        isActive: true
+      };
+      const toMem = members.find((m) => m.id === debt.to);
+      const toName = toMem?.name || 'Someone';
+
+      if (!map.has(debt.from)) {
+        map.set(debt.from, { payer: payerMem, debts: [], total: 0 });
+      }
+      const entry = map.get(debt.from)!;
+      entry.debts.push({ to: debt.to, toName, amount: debt.amount });
+      entry.total += debt.amount;
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.payer.name.localeCompare(b.payer.name));
+  }, [tripDebts, members]);
+
   const handleShareTripWhatsApp = () => {
     const tripName = currentGroup?.name || settings.groupName || 'Trip';
     const lines = [
@@ -62,19 +105,21 @@ export const DashboardView: React.FC = () => {
       '',
       `📋 *Who Pays Whom (Settlement):*`
     ];
-    if (tripDebts.length === 0) {
+
+    if (groupedTripDebts.length === 0) {
       lines.push('🎉 All settled! Everyone is completely even.');
     } else {
-      tripDebts.forEach((d) => {
-        const from = members.find((m) => m.id === d.from)?.name || 'Someone';
-        const to = members.find((m) => m.id === d.to)?.name || 'Someone';
-        lines.push(`• *${from}* pays *${to}*: ${currency}${d.amount.toFixed(2)}`);
+      groupedTripDebts.forEach((group) => {
+        lines.push(`👤 *${group.payer.name}* (Total to pay: ${currency}${group.total.toFixed(2)}):`);
+        group.debts.forEach((d) => {
+          lines.push(`  • Pays *${d.toName}*: ${currency}${d.amount.toFixed(2)}`);
+        });
+        lines.push('');
       });
     }
-    lines.push('');
-    lines.push(`Shared via ShareSplit`);
-    const text = lines.join('\n');
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+
+    lines.push('Shared via ShareSplit');
+    openWhatsApp(lines.join('\n'));
   };
 
   const handleCopyTripSummary = () => {
@@ -86,19 +131,74 @@ export const DashboardView: React.FC = () => {
       '',
       `Settlement:`
     ];
-    if (tripDebts.length === 0) {
+
+    if (groupedTripDebts.length === 0) {
       lines.push('All settled! Everyone is even.');
     } else {
-      tripDebts.forEach((d) => {
-        const from = members.find((m) => m.id === d.from)?.name || 'Someone';
-        const to = members.find((m) => m.id === d.to)?.name || 'Someone';
-        lines.push(`• ${from} pays ${to}: ${currency}${d.amount.toFixed(2)}`);
+      groupedTripDebts.forEach((group) => {
+        lines.push(`${group.payer.name} (Total to pay: ${currency}${group.total.toFixed(2)}):`);
+        group.debts.forEach((d) => {
+          lines.push(`  • Pays ${d.toName}: ${currency}${d.amount.toFixed(2)}`);
+        });
       });
     }
+
     navigator.clipboard.writeText(lines.join('\n'));
     setCopiedSummary(true);
     showToast('Trip settlement summary copied!', 'success');
     setTimeout(() => setCopiedSummary(false), 2500);
+  };
+
+  const handleShareTripImage = async () => {
+    setIsSharingImage(true);
+    const tripName = currentGroup?.name || settings.groupName || 'Trip';
+    const txs: { fromName: string; toName: string; amount: number }[] = [];
+    groupedTripDebts.forEach((group) => {
+      group.debts.forEach((d) => {
+        txs.push({
+          fromName: group.payer.name,
+          toName: d.toName,
+          amount: d.amount
+        });
+      });
+    });
+
+    await shareOrDownloadReceipt(
+      {
+        title: `Trip Settlement: ${tripName}`,
+        dateRange: `${tripExpenses.length} trip expenses`,
+        currency,
+        transactions: txs
+      },
+      showToast
+    );
+    setIsSharingImage(false);
+  };
+
+  const handleDownloadTripImage = async () => {
+    setIsDownloadingImage(true);
+    const tripName = currentGroup?.name || settings.groupName || 'Trip';
+    const txs: { fromName: string; toName: string; amount: number }[] = [];
+    groupedTripDebts.forEach((group) => {
+      group.debts.forEach((d) => {
+        txs.push({
+          fromName: group.payer.name,
+          toName: d.toName,
+          amount: d.amount
+        });
+      });
+    });
+
+    await downloadReceiptImage(
+      {
+        title: `Trip Settlement: ${tripName}`,
+        dateRange: `${tripExpenses.length} trip expenses`,
+        currency,
+        transactions: txs
+      },
+      showToast
+    );
+    setIsDownloadingImage(false);
   };
 
   // -------------------------------------------------------------
@@ -135,6 +235,68 @@ export const DashboardView: React.FC = () => {
   });
 
   const simplifiedWeeklyTransactions = simplifyDebts(netBalancesNumeric, weekExpenses, members);
+
+  const handleShareWeeklyWhatsApp = () => {
+    const groupName = currentGroup?.name || settings.groupName || 'Flat';
+    const lines = [
+      `🏠 *Weekly Settlement: ${groupName}*`,
+      `📅 *Period:* ${currentWeek.startDate} to ${currentWeek.endDate}`,
+      `💰 *Total Spent:* ${currency}${totalSpentThisWeek.toLocaleString('en-IN')}`,
+      '',
+      `📋 *Who Pays Whom (Settlement):*`
+    ];
+
+    if (simplifiedWeeklyTransactions.length === 0) {
+      lines.push('🎉 All settled! Everyone is completely even.');
+    } else {
+      const debtorMap = new Map<string, { debtorName: string; debts: { toName: string; amount: number }[]; total: number }>();
+      simplifiedWeeklyTransactions.forEach((tx) => {
+        const debtor = members.find((m) => m.id === tx.from);
+        const creditor = members.find((m) => m.id === tx.to);
+        const debtorName = debtor?.name || 'Someone';
+        const toName = creditor?.name || 'Someone';
+        if (!debtorMap.has(tx.from)) {
+          debtorMap.set(tx.from, { debtorName, debts: [], total: 0 });
+        }
+        const entry = debtorMap.get(tx.from)!;
+        entry.debts.push({ toName, amount: tx.amount });
+        entry.total += tx.amount;
+      });
+
+      Array.from(debtorMap.values()).sort((a, b) => a.debtorName.localeCompare(b.debtorName)).forEach((entry) => {
+        lines.push(`👤 *${entry.debtorName}* (Total to pay: ${currency}${Math.round(entry.total).toLocaleString('en-IN')}):`);
+        entry.debts.forEach((d) => {
+          lines.push(`  • Pays *${d.toName}*: ${currency}${Math.round(d.amount).toLocaleString('en-IN')}`);
+        });
+        lines.push('');
+      });
+    }
+
+    lines.push('Shared via ShareSplit');
+    openWhatsApp(lines.join('\n'));
+  };
+
+  const handleShareWeeklyImage = async () => {
+    const txs = simplifiedWeeklyTransactions.map((tx) => {
+      const debtor = members.find((m) => m.id === tx.from);
+      const creditor = members.find((m) => m.id === tx.to);
+      return {
+        fromName: debtor ? debtor.name : 'Unknown',
+        toName: creditor ? creditor.name : 'Unknown',
+        amount: tx.amount
+      };
+    });
+
+    await shareOrDownloadReceipt(
+      {
+        title: 'Weekly Net Settlement',
+        dateRange: `${currentWeek.startDate} to ${currentWeek.endDate}`,
+        currency,
+        transactions: txs
+      },
+      showToast
+    );
+  };
 
   // Today's Expenses
   const todayStr = new Date().toISOString().split('T')[0];
@@ -175,21 +337,13 @@ export const DashboardView: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center">
             <button
               onClick={() => openModal('add-expense')}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 font-bold text-xs rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
               <span>Add Trip Expense</span>
-            </button>
-            <button
-              onClick={handleShareTripWhatsApp}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer"
-              title="Share Settlement on WhatsApp"
-            >
-              <Share2 className="w-4 h-4" />
-              <span className="hidden sm:inline">WhatsApp</span>
             </button>
           </div>
         </div>
@@ -233,7 +387,7 @@ export const DashboardView: React.FC = () => {
           </div>
         </div>
 
-        {/* TRIP SETTLEMENT: Who Owes Whom */}
+        {/* TRIP SETTLEMENT: Who Owes Whom (Grouped by Payer) */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div>
@@ -245,7 +399,7 @@ export const DashboardView: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={handleCopyTripSummary}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer"
@@ -255,16 +409,28 @@ export const DashboardView: React.FC = () => {
               </button>
 
               <button
-                onClick={handleShareTripWhatsApp}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                onClick={handleDownloadTripImage}
+                disabled={isSharingImage || isDownloadingImage}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 shadow-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Download receipt JPG directly"
               >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>Share WhatsApp</span>
+                <Download className="w-4 h-4 text-emerald-400" />
+                <span>{isDownloadingImage ? 'Saving...' : 'Download JPG'}</span>
+              </button>
+
+              <button
+                onClick={handleShareTripImage}
+                disabled={isSharingImage || isDownloadingImage}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Share settlement receipt image directly to WhatsApp"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>{isSharingImage ? 'Opening...' : 'Share Image'}</span>
               </button>
             </div>
           </div>
 
-          {tripDebts.length === 0 ? (
+          {groupedTripDebts.length === 0 ? (
             <div className="py-8 text-center space-y-2 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/60">
               <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
               <div className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
@@ -275,52 +441,65 @@ export const DashboardView: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {tripDebts.map((debt, idx) => {
-                const fromMem = members.find((m) => m.id === debt.from);
-                const toMem = members.find((m) => m.id === debt.to);
-                return (
-                  <div
-                    key={`${debt.from}-${debt.to}-${idx}`}
-                    className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850/60 flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold text-xs flex items-center justify-center shrink-0">
-                        {fromMem?.name.slice(0, 1) || '?'}
+            <div className="space-y-3.5">
+              {groupedTripDebts.map((group) => (
+                <div
+                  key={group.payer.id}
+                  className="p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-850/60 space-y-3 shadow-2xs"
+                >
+                  {/* Payer Header Row */}
+                  <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-extrabold text-xs flex items-center justify-center shrink-0">
+                        {group.payer.name.slice(0, 1)}
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block truncate">
-                          {fromMem?.name || 'Unknown'}
+                      <div>
+                        <span className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                          {group.payer.name}
                         </span>
-                        <span className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold uppercase">
+                        <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/60 dark:border-rose-900/60 uppercase">
                           Owes
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-center px-2 shrink-0">
-                      <span className="text-sm font-black text-slate-900 dark:text-white">
-                        {currency}{debt.amount.toFixed(2)}
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Total To Pay</span>
+                      <span className="text-sm font-black text-rose-600 dark:text-rose-400">
+                        {currency}{group.total.toFixed(2)}
                       </span>
-                      <ArrowRight className="w-4 h-4 text-slate-400 my-0.5" />
-                    </div>
-
-                    <div className="flex items-center gap-2.5 min-w-0 text-right justify-end">
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block truncate">
-                          {toMem?.name || 'Unknown'}
-                        </span>
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase">
-                          Gets back
-                        </span>
-                      </div>
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-xs flex items-center justify-center shrink-0">
-                        {toMem?.name.slice(0, 1) || '?'}
-                      </div>
                     </div>
                   </div>
-                );
-              })}
+
+                  {/* List of who this person pays */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {group.debts.map((item, dIdx) => (
+                      <div
+                        key={`${group.payer.id}-${item.to}-${dIdx}`}
+                        className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shadow-2xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0">
+                            Pays
+                          </span>
+                          <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {item.toName.slice(0, 1)}
+                          </div>
+                          <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                            {item.toName}
+                          </span>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="text-xs font-black text-slate-900 dark:text-white">
+                            {currency}{item.amount.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -570,9 +749,10 @@ export const DashboardView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+
             <button
               onClick={() => setActiveSection('history')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 text-slate-200 hover:bg-slate-700 font-bold text-xs rounded-xl transition-colors border border-slate-700"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 text-slate-200 hover:bg-slate-700 font-bold text-xs rounded-xl transition-colors border border-slate-700 cursor-pointer"
               title="View archived past weeks"
             >
               <History className="w-3.5 h-3.5 text-brand-400" />
@@ -581,7 +761,7 @@ export const DashboardView: React.FC = () => {
 
             <button
               onClick={() => setActiveSection('weekly-settlement')}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs rounded-xl shadow-md transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer"
             >
               <span>Settlement</span>
               <ChevronRight className="w-3.5 h-3.5" />

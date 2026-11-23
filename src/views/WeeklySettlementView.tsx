@@ -5,7 +5,7 @@ import { calculateNetBalances, simplifyDebts } from '../services/settlementEngin
 import { SettlementTransactionCard } from '../components/settlement/SettlementTransactionCard';
 import { CustomSettlementCard } from '../components/settlement/CustomSettlementCard';
 import { EmptyState } from '../components/common/EmptyState';
-import { shareOrDownloadReceipt, downloadReceiptImage } from '../utils/shareSettlementReceipt';
+import { shareOrDownloadReceipt, downloadReceiptImage, openWhatsApp } from '../utils/shareSettlementReceipt';
 
 export const WeeklySettlementView: React.FC = () => {
   const { expenses, members, currentWeek, settings, openModal, setActiveSection, showToast } = useApp();
@@ -73,6 +73,46 @@ export const WeeklySettlementView: React.FC = () => {
       showToast
     );
     setIsDownloading(false);
+  };
+
+  const handleShareWhatsApp = () => {
+    const groupName = settings.groupName || 'Flat';
+    const lines = [
+      `🏠 *Weekly Settlement: ${groupName}*`,
+      `📅 *Period:* ${currentWeek.startDate} to ${currentWeek.endDate}`,
+      `💰 *Total Spent:* ${currency}${totalSpentThisWeek.toLocaleString('en-IN')}`,
+      '',
+      `📋 *Who Pays Whom (Settlement):*`
+    ];
+
+    if (finalSimplifiedTransactions.length === 0) {
+      lines.push('🎉 All settled! Everyone is completely even.');
+    } else {
+      const debtorMap = new Map<string, { debtorName: string; debts: { toName: string; amount: number }[]; total: number }>();
+      finalSimplifiedTransactions.forEach((tx) => {
+        const debtor = members.find((m) => m.id === tx.from);
+        const creditor = members.find((m) => m.id === tx.to);
+        const debtorName = debtor?.name || 'Someone';
+        const toName = creditor?.name || 'Someone';
+        if (!debtorMap.has(tx.from)) {
+          debtorMap.set(tx.from, { debtorName, debts: [], total: 0 });
+        }
+        const entry = debtorMap.get(tx.from)!;
+        entry.debts.push({ toName, amount: tx.amount });
+        entry.total += tx.amount;
+      });
+
+      Array.from(debtorMap.values()).sort((a, b) => a.debtorName.localeCompare(b.debtorName)).forEach((entry) => {
+        lines.push(`👤 *${entry.debtorName}* (Total to pay: ${currency}${Math.round(entry.total).toLocaleString('en-IN')}):`);
+        entry.debts.forEach((d) => {
+          lines.push(`  • Pays *${d.toName}*: ${currency}${Math.round(d.amount).toLocaleString('en-IN')}`);
+        });
+        lines.push('');
+      });
+    }
+
+    lines.push('Shared via ShareSplit');
+    openWhatsApp(lines.join('\n'));
   };
 
   return (
@@ -317,7 +357,7 @@ export const WeeklySettlementView: React.FC = () => {
                     <button
                       onClick={handleShareReceipt}
                       disabled={isSharing || isDownloading}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                       title="Share receipt image directly to WhatsApp or contacts"
                     >
                       <Share2 className="w-4 h-4" />
@@ -327,7 +367,7 @@ export const WeeklySettlementView: React.FC = () => {
                     <button
                       onClick={handleDownloadReceipt}
                       disabled={isSharing || isDownloading}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 shadow-md transition-all active:scale-95 disabled:opacity-50"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                       title="Download receipt JPG directly"
                     >
                       <Download className="w-4 h-4 text-emerald-400" />

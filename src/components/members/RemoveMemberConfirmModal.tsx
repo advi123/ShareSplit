@@ -18,15 +18,15 @@ export const RemoveMemberConfirmModal: React.FC = () => {
     <Modal
       isOpen={activeModal === 'remove-member-confirm'}
       onClose={cancelRemoveMember}
-      title="Remove Member?"
-      subtitle={`Deactivate ${pendingRemoveMember.name} while preserving audit trail`}
+      title="Move Member to Inactive Zone?"
+      subtitle={`Deactivate ${pendingRemoveMember.name} and exclude from future expense splits`}
       maxWidth="md"
     >
       <div className="space-y-5">
         <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs leading-relaxed flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <strong>Historical Expenses Retained:</strong> This member has historical expenses. They will be removed from future expense selection, but their historical expenses, bills and settlements will remain unchanged.
+            <strong>Moved to Inactive:</strong> {pendingRemoveMember.name} will be placed in the <strong>Inactive Members</strong> section. They will no longer be included in new expenses, and you can reactivate them or permanently delete them anytime from the Inactive section.
           </div>
         </div>
 
@@ -49,17 +49,17 @@ export const RemoveMemberConfirmModal: React.FC = () => {
         <div className="pt-2 flex justify-end gap-3">
           <button
             onClick={cancelRemoveMember}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
           >
             Cancel
           </button>
 
           <button
             onClick={confirmRemoveMember}
-            className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm"
+            className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-sm cursor-pointer"
           >
             <UserMinus className="w-4 h-4" />
-            <span>Remove Member</span>
+            <span>Move to Inactive</span>
           </button>
         </div>
       </div>

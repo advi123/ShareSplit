@@ -85,7 +85,9 @@ export async function generateSettlementReceiptBlob(
 
   // Transactions list
   let y = 166;
-  if (data.transactions.length === 0) {
+  const sortedTransactions = [...data.transactions].sort((a, b) => a.fromName.localeCompare(b.fromName));
+
+  if (sortedTransactions.length === 0) {
     ctx.fillStyle = '#131d31';
     roundRect(ctx, padding, y, width - padding * 2, 58, 14);
     ctx.fill();
@@ -94,7 +96,7 @@ export async function generateSettlementReceiptBlob(
     ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
     ctx.fillText('✓ Group is 100% Settled. No debt transfers needed!', padding + 24, y + 35);
   } else {
-    for (const tx of data.transactions) {
+    for (const tx of sortedTransactions) {
       // Row card
       ctx.fillStyle = '#131d31';
       roundRect(ctx, padding, y, width - padding * 2, 58, 14);
@@ -156,6 +158,7 @@ export async function shareOrDownloadReceipt(
     const file = new File([blob], 'settlement-receipt.jpg', { type: 'image/jpeg' });
 
     // 1. Mobile native share sheet: Share ONLY image file, NO text message
+    // Mobile OS (Android/iOS) recognizes the image intent and displays WhatsApp directly in the share target list
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
         files: [file]
@@ -163,7 +166,23 @@ export async function shareOrDownloadReceipt(
       return;
     }
 
-    // 2. Fallback to direct download
+    // 2. Desktop / Laptop: Copy image to clipboard & open WhatsApp Web for seamless Ctrl+V pasting
+    try {
+      const pngBlob = await generateSettlementReceiptBlob(data, 'image/png');
+      if (navigator.clipboard && window.ClipboardItem) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': pngBlob })
+        ]);
+        downloadBlobFile(blob, 'settlement-receipt.jpg');
+        window.open('https://web.whatsapp.com', '_blank', 'noopener,noreferrer');
+        onToast?.('Receipt image copied! Opening WhatsApp Web (press Ctrl+V to paste).', 'success');
+        return;
+      }
+    } catch (clipErr) {
+      console.warn('Clipboard write skipped or failed:', clipErr);
+    }
+
+    // 3. Fallback to direct download
     downloadBlobFile(blob, 'settlement-receipt.jpg');
     onToast?.('Receipt image downloaded to your device!', 'success');
   } catch (err: any) {
@@ -230,4 +249,17 @@ function downloadBlobFile(blob: Blob, filename: string) {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Universal WhatsApp sharing link:
+ * Works on both Mobile devices (launches WhatsApp mobile app) and Laptop / Desktop (opens WhatsApp Web).
+ */
+export function openWhatsApp(text: string) {
+  const encoded = encodeURIComponent(text);
+  const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const url = isMobile
+    ? `https://api.whatsapp.com/send?text=${encoded}`
+    : `https://web.whatsapp.com/send?text=${encoded}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
 }

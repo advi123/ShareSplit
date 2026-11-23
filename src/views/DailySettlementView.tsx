@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
-import { Calendar, Info, Plus } from 'lucide-react';
+import { Calendar, Info, Plus, Share2, Download, Camera } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { calculateNetBalances, simplifyDebts } from '../services/settlementEngine';
 import { SettlementTransactionCard } from '../components/settlement/SettlementTransactionCard';
 import { ExpenseCard } from '../components/expenses/ExpenseCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { getTodayStr } from '../utils/dateUtils';
+import {
+  shareOrDownloadReceipt,
+  downloadReceiptImage,
+  openWhatsApp
+} from '../utils/shareSettlementReceipt';
 
 export const DailySettlementView: React.FC = () => {
-  const { expenses, members, settings, openModal } = useApp();
+  const { expenses, members, settings, openModal, showToast } = useApp();
 
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
+  const [isSharing, setIsSharing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const currency = settings.currency;
   const todayStr = getTodayStr();
@@ -27,6 +34,93 @@ export const DailySettlementView: React.FC = () => {
   });
 
   const dayTransactions = simplifyDebts(dayNetBalancesNumeric, dayExpenses, members);
+
+  const handleShareDailyWhatsApp = () => {
+    const groupName = settings.groupName || 'Flat';
+    const lines = [
+      `📅 *Daily Settlement: ${groupName} (${selectedDate})*`,
+      `💰 *Total Spent Today:* ${currency}${dayTotal.toLocaleString('en-IN')} (${dayExpenses.length} expenses)`,
+      '',
+      `📋 *Who Pays Whom (Settlement):*`
+    ];
+
+    if (dayTransactions.length === 0) {
+      lines.push('🎉 All settled! Everyone is completely even.');
+    } else {
+      const debtorMap = new Map<string, { debtorName: string; debts: { toName: string; amount: number }[]; total: number }>();
+      dayTransactions.forEach((tx) => {
+        const debtor = members.find((m) => m.id === tx.from);
+        const creditor = members.find((m) => m.id === tx.to);
+        const debtorName = debtor?.name || 'Someone';
+        const toName = creditor?.name || 'Someone';
+        if (!debtorMap.has(tx.from)) {
+          debtorMap.set(tx.from, { debtorName, debts: [], total: 0 });
+        }
+        const entry = debtorMap.get(tx.from)!;
+        entry.debts.push({ toName, amount: tx.amount });
+        entry.total += tx.amount;
+      });
+
+      Array.from(debtorMap.values()).sort((a, b) => a.debtorName.localeCompare(b.debtorName)).forEach((entry) => {
+        lines.push(`👤 *${entry.debtorName}* (Total to pay: ${currency}${Math.round(entry.total).toLocaleString('en-IN')}):`);
+        entry.debts.forEach((d) => {
+          lines.push(`  • Pays *${d.toName}*: ${currency}${Math.round(d.amount).toLocaleString('en-IN')}`);
+        });
+        lines.push('');
+      });
+    }
+
+    lines.push('Shared via ShareSplit');
+    openWhatsApp(lines.join('\n'));
+  };
+
+  const handleShareDailyImage = async () => {
+    setIsSharing(true);
+    const txs = dayTransactions.map((tx) => {
+      const debtor = members.find((m) => m.id === tx.from);
+      const creditor = members.find((m) => m.id === tx.to);
+      return {
+        fromName: debtor ? debtor.name : 'Unknown',
+        toName: creditor ? creditor.name : 'Unknown',
+        amount: tx.amount
+      };
+    });
+
+    await shareOrDownloadReceipt(
+      {
+        title: `Daily Settlement: ${selectedDate}`,
+        dateRange: `${dayExpenses.length} expenses recorded`,
+        currency,
+        transactions: txs
+      },
+      showToast
+    );
+    setIsSharing(false);
+  };
+
+  const handleDownloadDailyImage = async () => {
+    setIsDownloading(true);
+    const txs = dayTransactions.map((tx) => {
+      const debtor = members.find((m) => m.id === tx.from);
+      const creditor = members.find((m) => m.id === tx.to);
+      return {
+        fromName: debtor ? debtor.name : 'Unknown',
+        toName: creditor ? creditor.name : 'Unknown',
+        amount: tx.amount
+      };
+    });
+
+    await downloadReceiptImage(
+      {
+        title: `Daily Settlement: ${selectedDate}`,
+        dateRange: `${dayExpenses.length} expenses recorded`,
+        currency,
+        transactions: txs
+      },
+      showToast
+    );
+    setIsDownloading(false);
+  };
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
@@ -145,6 +239,40 @@ export const DailySettlementView: React.FC = () => {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* Daily Settlement Actions Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs">
+        <div>
+          <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+            Share Daily Settlement ({selectedDate})
+          </h4>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            Send screenshot receipt or breakdown directly on WhatsApp
+          </p>
+        </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleDownloadDailyImage}
+            disabled={isSharing || isDownloading}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            title="Download receipt JPG directly"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>{isDownloading ? 'Saving...' : 'Download JPG'}</span>
+          </button>
+
+          <button
+            onClick={handleShareDailyImage}
+            disabled={isSharing || isDownloading}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            title="Share receipt image directly to WhatsApp or contacts"
+          >
+            <Share2 className="w-4 h-4" />
+            <span>{isSharing ? 'Opening...' : 'Share Image'}</span>
+          </button>
         </div>
       </div>
 

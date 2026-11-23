@@ -58,12 +58,13 @@ interface AppContextType {
   confirmPastWeekSettled: (weekId: string) => Promise<void>;
   dismissPastWeekSettledPrompt: (weekId: string) => void;
   deleteExpense: (id: string) => void;
-  addMember: (name: string, nickname?: string, color?: string) => void;
+  addMember: (name: string, nickname?: string, color?: string) => Promise<boolean>;
   updateMember: (member: Person) => void;
   requestRemoveMember: (id: string) => void;
   confirmRemoveMember: () => void;
   cancelRemoveMember: () => void;
   reactivateMember: (id: string) => void;
+  permanentlyDeleteMember: (id: string) => Promise<void>;
   saveBill: (bill: Bill, imageData?: string) => Promise<Bill>;
   deleteBill: (billId: string, deleteRelatedExpense?: boolean) => Promise<void>;
   updateSettings: (newSettings: GroupSettings) => void;
@@ -342,15 +343,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addOrUpdateExpense = async (expense: Expense, forceReopen: boolean = false) => {
     try {
       const isEditingExisting = !!(expense.id && !expense.id.startsWith('new-'));
+      const isTrip = currentGroup?.groupType === 'trip' || currentGroup?.group_type === 'trip';
       const { week, isClosed } = await storageService.getOrCreateWeekForDate(expense.date);
 
-      if (isClosed && !forceReopen && !isEditingExisting) {
+      if (!isTrip && isClosed && !forceReopen && !isEditingExisting) {
         setPendingReopen({ expense, week });
         openModal('reopen-week-confirm');
         return;
       }
 
-      if (isClosed && (forceReopen || isEditingExisting)) {
+      if (!isTrip && isClosed && (forceReopen || isEditingExisting)) {
         await storageService.reopenWeek(week.id);
         localStorage.removeItem(`sharesplit_week_settled_${week.id}`);
         sessionStorage.removeItem(`sharesplit_week_dismissed_${week.id}`);
@@ -395,14 +397,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addMember = async (name: string, nickname = '', color = 'bg-slate-500') => {
+  const addMember = async (name: string, nickname = '', color = 'bg-slate-500'): Promise<boolean> => {
+    const trimmed = name.trim();
+    const existing = members.find(
+      (m) => m.name.toLowerCase() === trimmed.toLowerCase() && m.isActive !== false
+    );
+    if (existing) {
+      showToast(`Member "${trimmed}" is already active in this group.`, 'error');
+      return false;
+    }
     try {
-      await storageService.addMember(name.trim(), nickname.trim(), color);
+      await storageService.addMember(trimmed, nickname.trim(), color);
       await loadAllData();
-      showToast(`Added new member "${name}"`);
+      showToast(`Added new member "${trimmed}"`, 'success');
+      return true;
     } catch (err: any) {
       console.error('Failed to add member:', err);
       showToast(err.message || 'Error adding member', 'error');
+      return false;
     }
   };
 
@@ -419,8 +431,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const requestRemoveMember = (id: string) => {
     const activeCount = members.filter((m) => m.isActive !== false).length;
-    if (activeCount <= 2) {
-      showToast('Group must have at least 2 active members.', 'error');
+    if (activeCount <= 1) {
+      showToast('Group must have at least 1 active member.', 'error');
       return;
     }
 
@@ -434,18 +446,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const confirmRemoveMember = async () => {
     if (pendingRemoveMember) {
       try {
-        const { wasDeactivated, wasDeleted } = await storageService.removeOrDeactivateMember(
-          pendingRemoveMember.id
-        );
+        await storageService.removeOrDeactivateMember(pendingRemoveMember.id);
+        setShowInactiveMembers(true);
         await loadAllData();
-
-        if (wasDeleted) {
-          showToast(`Member "${pendingRemoveMember.name}" removed from group`);
-        } else if (wasDeactivated) {
-          showToast(
-            `Member "${pendingRemoveMember.name}" has recorded expenses. Moved to past inactive members so historical math remains exact.`
-          );
-        }
+        showToast(`Moved "${pendingRemoveMember.name}" to inactive zone.`, 'info');
       } catch (err: any) {
         console.error('Failed to remove member:', err);
         showToast(err.message || 'Error removing member', 'error');
@@ -458,6 +462,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const cancelRemoveMember = () => {
     setPendingRemoveMember(null);
     closeModal();
+  };
+
+  const permanentlyDeleteMember = async (id: string) => {
+    const target = members.find((m) => m.id === id);
+    try {
+      await storageService.permanentlyDeleteMember(id);
+      await loadAllData();
+      showToast(`Permanently deleted "${target?.name || 'Member'}"`, 'info');
+    } catch (err: any) {
+      console.error('Failed to permanently delete member:', err);
+      showToast(err.message || 'Error deleting member', 'error');
+    }
   };
 
   const reactivateMember = async (id: string) => {
@@ -608,6 +624,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         confirmRemoveMember,
         cancelRemoveMember,
         reactivateMember,
+        permanentlyDeleteMember,
         saveBill,
         deleteBill,
         updateSettings,

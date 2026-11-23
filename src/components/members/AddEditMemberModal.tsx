@@ -8,6 +8,7 @@ export const AddEditMemberModal: React.FC = () => {
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [color, setColor] = useState('indigo');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isEditing = activeModal === 'edit-member';
 
@@ -25,20 +26,31 @@ export const AddEditMemberModal: React.FC = () => {
 
   if (activeModal !== 'add-member' && activeModal !== 'edit-member') return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isSubmitting) return;
 
-    if (isEditing && selectedMember) {
-      updateMember({
-        ...selectedMember,
-        name: name.trim(),
-        nickname: nickname.trim() || undefined,
-        avatar: name.trim().slice(0, 1).toUpperCase(),
-        color
-      });
-    } else {
-      addMember(name.trim(), nickname.trim(), color);
+    setIsSubmitting(true);
+    try {
+      if (isEditing && selectedMember) {
+        await updateMember({
+          ...selectedMember,
+          name: name.trim(),
+          nickname: nickname.trim() || undefined,
+          avatar: name.trim().slice(0, 1).toUpperCase(),
+          color
+        });
+        closeModal();
+      } else {
+        const success = await addMember(name.trim(), nickname.trim(), color);
+        if (success) {
+          setName('');
+          setNickname('');
+          closeModal();
+        }
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -106,9 +118,10 @@ export const AddEditMemberModal: React.FC = () => {
           </button>
           <button
             type="submit"
-            className="px-5 py-2.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 rounded-xl shadow-2xs transition-colors duration-150"
+            disabled={!name.trim() || isSubmitting}
+            className="px-5 py-2.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 rounded-xl shadow-2xs transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isEditing ? 'Save Changes' : 'Add Member'}
+            {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Add Member'}
           </button>
         </div>
       </form>

@@ -13,6 +13,7 @@ export const MembersView: React.FC = () => {
     openModal,
     requestRemoveMember,
     reactivateMember,
+    permanentlyDeleteMember,
     showInactiveMembers,
     toggleShowInactiveMembers
   } = useApp();
@@ -195,13 +196,28 @@ export const MembersView: React.FC = () => {
                       <span>View History</span>
                     </button>
 
-                    <button
-                      onClick={() => reactivateMember(member.id)}
-                      className="flex items-center gap-1 px-3 py-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg dark:bg-slate-800 dark:text-slate-200 transition-colors"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Reactivate</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => reactivateMember(member.id)}
+                        className="flex items-center gap-1 px-3 py-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg dark:bg-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reactivate</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Permanently delete "${member.name}"? This cannot be undone.`)) {
+                            permanentlyDeleteMember(member.id);
+                          }
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-lg transition-colors cursor-pointer"
+                        title="Delete permanently"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

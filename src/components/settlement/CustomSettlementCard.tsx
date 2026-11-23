@@ -3,7 +3,7 @@ import { Calendar, AlertCircle, ArrowRight, Info, CheckCircle2, Share2, Download
 import { useApp } from '../../context/AppContext';
 import { calculateNetBalances, simplifyDebts } from '../../services/settlementEngine';
 import { getTodayStr } from '../../utils/dateUtils';
-import { shareOrDownloadReceipt, downloadReceiptImage } from '../../utils/shareSettlementReceipt';
+import { shareOrDownloadReceipt, downloadReceiptImage, openWhatsApp } from '../../utils/shareSettlementReceipt';
 
 export const CustomSettlementCard: React.FC = () => {
   const { expenses, members, settings, currentWeek, showToast } = useApp();
@@ -292,7 +292,7 @@ export const CustomSettlementCard: React.FC = () => {
                   setIsDownloading(false);
                 }}
                 disabled={isSharing || isDownloading}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 shadow-md transition-all active:scale-95 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                 title="Download receipt JPG directly"
               >
                 <Download className="w-4 h-4 text-emerald-400" />

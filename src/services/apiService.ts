@@ -102,13 +102,17 @@ function parseExpenseFromApi(e: any): Expense {
     source: e.source,
     paidBy: e.paid_by,
     totalAmount: e.total_amount,
-    participants: e.participants ? e.participants.map((p: any) => p.member_id) : [],
+    participants: e.participants
+      ? e.participants.map((p: any) => (typeof p === 'string' ? p : p.member_id || p.id))
+      : [],
     items: e.items
       ? e.items.map((i: any) => ({
           id: i.id,
           name: i.name,
           amount: i.amount,
-          participants: i.participants ? i.participants.map((ip: any) => ip.member_id) : []
+          participants: i.participants
+            ? i.participants.map((ip: any) => (typeof ip === 'string' ? ip : ip.member_id || ip.id))
+            : []
         }))
       : undefined,
     notes: decodedNotes,
@@ -281,8 +285,23 @@ export const apiService = {
       };
     },
 
-    async delete(id: string): Promise<{ action: 'deleted' | 'deactivated' }> {
-      const res = await authFetch(`${BASE_URL}/members/${id}`, { method: 'DELETE' });
+    async deactivate(id: string): Promise<Person> {
+      const res = await authFetch(`${BASE_URL}/members/${id}/deactivate`, { method: 'POST' });
+      const m = await handleResponse(res);
+      return {
+        id: m.id,
+        name: m.name,
+        nickname: m.nickname || '',
+        avatar: m.avatar || '',
+        color: m.color || 'bg-slate-500',
+        joinedAt: m.joined_at,
+        isActive: m.is_active
+      };
+    },
+
+    async delete(id: string, permanent: boolean = false): Promise<{ action: 'deleted' | 'deactivated' | 'permanently_deleted' }> {
+      const url = permanent ? `${BASE_URL}/members/${id}?permanent=true` : `${BASE_URL}/members/${id}`;
+      const res = await authFetch(url, { method: 'DELETE' });
       return handleResponse(res);
     }
   },

@@ -175,6 +175,64 @@ export const apiService = {
       return dataRes;
     },
 
+    async resetPassword(data: { email: string; new_password: string }): Promise<AuthResponse> {
+      const res = await fetch(`${BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const dataRes = await handleResponse(res);
+      if (dataRes.access_token) {
+        localStorage.setItem('sharesplit_token', dataRes.access_token);
+        if (dataRes.active_group_id) {
+          localStorage.setItem('sharesplit_active_group_id', dataRes.active_group_id);
+        }
+      }
+      if (dataRes.groups) {
+        dataRes.groups = dataRes.groups.map(normalizeGroupBrief);
+      }
+      return dataRes;
+    },
+
+    async sendResetOTP(email: string): Promise<{ status: string; message: string; dev_code?: string }> {
+      const res = await fetch(`${BASE_URL}/auth/forgot-password/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      return handleResponse(res);
+    },
+
+    async validateResetOTP(data: { email: string; otp_code: string }): Promise<{ status: string; message: string }> {
+      const res = await fetch(`${BASE_URL}/auth/forgot-password/validate-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return handleResponse(res);
+    },
+
+    async verifyResetOTP(data: { email: string; otp_code: string; new_password: string }): Promise<AuthResponse> {
+
+      const res = await fetch(`${BASE_URL}/auth/forgot-password/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const dataRes = await handleResponse(res);
+      if (dataRes.access_token) {
+        localStorage.setItem('sharesplit_token', dataRes.access_token);
+        if (dataRes.active_group_id) {
+          localStorage.setItem('sharesplit_active_group_id', dataRes.active_group_id);
+        }
+      }
+      if (dataRes.groups) {
+        dataRes.groups = dataRes.groups.map(normalizeGroupBrief);
+      }
+      return dataRes;
+    },
+
+
     async getMe(): Promise<AuthResponse> {
       const res = await authFetch(`${BASE_URL}/auth/me`);
       const dataRes = await handleResponse(res);

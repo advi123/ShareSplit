@@ -44,14 +44,38 @@ export const Sidebar: React.FC = () => {
       {/* Brand Header */}
       <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center font-extrabold text-lg shadow-sm">
-            {isTrip ? '✈' : 'S'}
-          </div>
+          {isTrip ? (
+            <div className="w-9 h-9 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center font-extrabold text-lg shadow-sm">
+              ✈
+            </div>
+          ) : (
+            <img
+              src="/icon.png"
+              alt="ShareSplit Icon"
+              className="w-9 h-9 rounded-xl shadow-sm object-cover ring-1 ring-slate-900/10 dark:ring-white/10"
+            />
+          )}
           <div>
-            <h1 className="font-bold text-base tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              ShareSplit
-            </h1>
-            <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
+            {isTrip ? (
+              <h1 className="font-black italic text-base tracking-tight text-slate-900 dark:text-slate-100 flex items-center">
+                <span>Trip</span>
+                <span className="text-emerald-500">Split</span>
+              </h1>
+            ) : (
+              <div className="flex items-center">
+                <img
+                  src="/logo-text-light.png"
+                  alt="ShareSplit"
+                  className="h-5 w-auto object-contain dark:hidden"
+                />
+                <img
+                  src="/logo-text-dark.png"
+                  alt="ShareSplit"
+                  className="h-5 w-auto object-contain hidden dark:block"
+                />
+              </div>
+            )}
+            <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1 mt-0.5">
               <span>{isTrip ? 'Trip:' : 'Flat:'}</span>
               <span className="truncate max-w-[120px]">{currentGroup?.name || settings.groupName}</span>
             </p>

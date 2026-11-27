@@ -63,7 +63,7 @@ export async function generateSettlementReceiptBlob(
   ctx.fill();
   ctx.fillStyle = '#34d399';
   ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
-  ctx.fillText('⚡ ShareSplit', padding + 16, 45);
+  ctx.fillText('ShareSplit', padding + 16, 45);
 
   // Main Title
   ctx.fillStyle = '#ffffff';

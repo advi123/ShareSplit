@@ -19,6 +19,10 @@ interface AppContextType {
   currentGroup: GroupBrief | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, groupName?: string, inviteCode?: string) => Promise<void>;
+  resetPassword: (email: string, newPassword: string) => Promise<void>;
+  sendResetOTP: (email: string) => Promise<{ status: string; message: string; dev_code?: string }>;
+  validateResetOTP: (email: string, otpCode: string) => Promise<{ status: string; message: string }>;
+  verifyResetOTP: (email: string, otpCode: string, newPassword: string) => Promise<void>;
   logout: () => void;
   switchGroup: (groupId: string) => Promise<void>;
   createNewGroup: (name: string, currency?: string, groupType?: 'home' | 'trip') => Promise<void>;
@@ -219,6 +223,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Welcome to ShareSplit, ${res.user.name}!`, 'success');
     await loadAllData();
   };
+
+  const resetPassword = async (email: string, newPassword: string) => {
+    const res = await apiService.auth.resetPassword({ email, new_password: newPassword });
+    setUser(res.user);
+    setUserGroups(res.groups);
+    setActiveGroupId(res.active_group_id);
+    closeModal();
+    showToast(`Password updated! Welcome back, ${res.user.name}!`, 'success');
+    await loadAllData();
+  };
+
+  const sendResetOTP = async (email: string) => {
+    return apiService.auth.sendResetOTP(email);
+  };
+
+  const validateResetOTP = async (email: string, otpCode: string) => {
+    return apiService.auth.validateResetOTP({ email, otp_code: otpCode });
+  };
+
+  const verifyResetOTP = async (email: string, otpCode: string, newPassword: string) => {
+    const res = await apiService.auth.verifyResetOTP({ email, otp_code: otpCode, new_password: newPassword });
+    setUser(res.user);
+    setUserGroups(res.groups);
+    setActiveGroupId(res.active_group_id);
+    closeModal();
+    showToast(`Password updated! Welcome back, ${res.user.name}!`, 'success');
+    await loadAllData();
+  };
+
 
   const logout = () => {
     apiService.auth.logout();
@@ -585,6 +618,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currentGroup,
         login,
         register,
+        resetPassword,
+        sendResetOTP,
+        validateResetOTP,
+        verifyResetOTP,
         logout,
         switchGroup,
         createNewGroup,

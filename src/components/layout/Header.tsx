@@ -52,9 +52,11 @@ export const Header: React.FC = () => {
         {/* Left: Group Switcher & Active Week */}
         <div className="flex items-center gap-3">
           {/* Mobile brand icon */}
-          <div className="lg:hidden w-8 h-8 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center font-black text-sm shadow-xs">
-            S
-          </div>
+          <img
+            src="/icon.png"
+            alt="ShareSplit"
+            className="lg:hidden w-8 h-8 rounded-xl shadow-xs object-cover ring-1 ring-slate-900/10 dark:ring-white/10"
+          />
 
           <div>
             <div className="flex items-center gap-2">

@@ -1,12 +1,15 @@
 import uuid
-from datetime import datetime
+import random
+from datetime import datetime, timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from app.models.user import User, UserGroup
+from app.models.user import User, UserGroup, PasswordResetToken
 from app.models.group import Group
 from app.models.member import Member
-from app.schemas.user import UserRegister, UserLogin, AuthResponse, UserResponse, GroupBrief, GroupCreate
+from app.schemas.user import UserRegister, UserLogin, PasswordResetRequest, ValidateOTPRequest, VerifyOTPResetRequest, AuthResponse, UserResponse, GroupBrief, GroupCreate
 from app.core.security import hash_password, verify_password, create_access_token, generate_invite_code
+from app.services.email_service import send_otp_email
+
 
 def _build_auth_response(db: Session, user: User) -> AuthResponse:
     """Helper to assemble AuthResponse containing user, their groups, and access token."""
@@ -205,6 +208,168 @@ def login_user(db: Session, creds: UserLogin) -> AuthResponse:
         )
 
     return _build_auth_response(db, user)
+
+def send_reset_otp(db: Session, email: str) -> dict:
+    clean_email = email.strip().lower()
+    user = db.query(User).filter(User.email == clean_email).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email address. Please check your email or create a new account."
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been deactivated."
+        )
+
+    # Invalidate previous unused OTPs for this email
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.email == clean_email,
+        PasswordResetToken.is_used == False
+    ).update({"is_used": True})
+    db.commit()
+
+    # Generate secure 6-digit numeric OTP
+    otp_code = f"{random.randint(100000, 999999)}"
+    token_id = f"otp-{uuid.uuid4().hex[:8]}"
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    token_rec = PasswordResetToken(
+        id=token_id,
+        email=clean_email,
+        otp_code=otp_code,
+        expires_at=expires_at,
+        is_used=False
+    )
+    db.add(token_rec)
+    db.commit()
+
+    # Deliver OTP & Reset Link via Email
+    email_res = send_otp_email(clean_email, otp_code)
+    
+    if not email_res.get("sent"):
+        if email_res.get("dev_mode"):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Email delivery requires SMTP configuration in backend/.env. Please configure SMTP_USER and SMTP_PASSWORD to send real emails to your Gmail."
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to send email to {clean_email}: {email_res.get('error', 'SMTP connection error')}. Please check your SMTP settings."
+            )
+
+    return {
+        "status": "success",
+        "message": f"Verification code sent to {clean_email}. Please check your Gmail inbox."
+    }
+
+def validate_reset_otp(db: Session, email: str, otp_code: str) -> dict:
+    clean_email = email.strip().lower()
+    user = db.query(User).filter(User.email == clean_email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email address."
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been deactivated."
+        )
+
+    now = datetime.utcnow()
+    token_rec = (
+        db.query(PasswordResetToken)
+        .filter(
+            PasswordResetToken.email == clean_email,
+            PasswordResetToken.otp_code == otp_code.strip(),
+            PasswordResetToken.is_used == False,
+            PasswordResetToken.expires_at >= now
+        )
+        .order_by(PasswordResetToken.created_at.desc())
+        .first()
+    )
+
+    if not token_rec:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code. Please check your Gmail or request a new code."
+        )
+
+    return {
+        "status": "success",
+        "message": "Verification code is valid. You can now set your new password."
+    }
+
+def verify_otp_and_reset_password(db: Session, req: VerifyOTPResetRequest) -> AuthResponse:
+    clean_email = req.email.strip().lower()
+    user = db.query(User).filter(User.email == clean_email).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email address."
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been deactivated."
+        )
+
+    now = datetime.utcnow()
+    token_rec = (
+        db.query(PasswordResetToken)
+        .filter(
+            PasswordResetToken.email == clean_email,
+            PasswordResetToken.otp_code == req.otp_code.strip(),
+            PasswordResetToken.is_used == False,
+            PasswordResetToken.expires_at >= now
+        )
+        .order_by(PasswordResetToken.created_at.desc())
+        .first()
+    )
+
+    if not token_rec:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code. Please check your email or request a new code."
+        )
+
+    # Invalidate token
+    token_rec.is_used = True
+    user.hashed_password = hash_password(req.new_password)
+    db.commit()
+    db.refresh(user)
+
+    return _build_auth_response(db, user)
+
+def reset_password(db: Session, req: PasswordResetRequest) -> AuthResponse:
+    clean_email = req.email.strip().lower()
+    user = db.query(User).filter(User.email == clean_email).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email address. Please check your email or create a new account."
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been deactivated."
+        )
+
+    user.hashed_password = hash_password(req.new_password)
+    db.commit()
+    db.refresh(user)
+
+    return _build_auth_response(db, user)
+
 
 def get_current_user_profile(db: Session, user: User) -> AuthResponse:
     return _build_auth_response(db, user)

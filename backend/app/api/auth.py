@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth_dependency import get_current_user
 from app.models.user import User
-from app.schemas.user import UserRegister, UserLogin, AuthResponse, GroupBrief, GroupCreate, GroupJoin
+from app.schemas.user import UserRegister, UserLogin, PasswordResetRequest, SendOTPRequest, SendOTPResponse, ValidateOTPRequest, VerifyOTPResetRequest, AuthResponse, GroupBrief, GroupCreate, GroupJoin
 import app.services.auth_service as auth_service
 
 router = APIRouter(tags=["auth"])
@@ -17,6 +17,28 @@ def register(reg_in: UserRegister, db: Session = Depends(get_db)):
 def login(creds: UserLogin, db: Session = Depends(get_db)):
     """Authenticate with email and password, returning JWT token and accessible groups."""
     return auth_service.login_user(db, creds)
+
+@router.post("/auth/forgot-password/send-otp", response_model=SendOTPResponse)
+def send_forgot_password_otp(req: SendOTPRequest, db: Session = Depends(get_db)):
+    """Generate and email a 6-digit verification code (OTP) to registered account."""
+    return auth_service.send_reset_otp(db, req.email)
+
+@router.post("/auth/forgot-password/validate-code")
+def validate_forgot_password_code(req: ValidateOTPRequest, db: Session = Depends(get_db)):
+    """Verify that a 6-digit OTP code is valid and unexpired before presenting password reset inputs."""
+    return auth_service.validate_reset_otp(db, req.email, req.otp_code)
+
+@router.post("/auth/forgot-password/verify", response_model=AuthResponse)
+def verify_forgot_password_otp(req: VerifyOTPResetRequest, db: Session = Depends(get_db)):
+    """Verify 6-digit OTP code and securely update password, returning fresh JWT session."""
+    return auth_service.verify_otp_and_reset_password(db, req)
+
+
+@router.post("/auth/forgot-password", response_model=AuthResponse)
+def forgot_password(reset_in: PasswordResetRequest, db: Session = Depends(get_db)):
+    """Legacy direct reset endpoint."""
+    return auth_service.reset_password(db, reset_in)
+
 
 @router.get("/auth/me", response_model=AuthResponse)
 def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):

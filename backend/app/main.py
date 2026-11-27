@@ -10,7 +10,7 @@ from app.core.database import SessionLocal
 from app.core.security import generate_invite_code
 
 # Ensure all models are registered with Base.metadata
-from app.models.user import User, UserGroup
+from app.models.user import User, UserGroup, PasswordResetToken
 from app.models.group import Group
 from app.models.member import Member
 from app.models.expense import Expense

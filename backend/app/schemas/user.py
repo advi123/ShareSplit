@@ -13,6 +13,29 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+    new_password: str = Field(..., min_length=6, description="New password must be at least 6 characters")
+
+class SendOTPRequest(BaseModel):
+    email: EmailStr
+
+class SendOTPResponse(BaseModel):
+    status: str
+    message: str
+
+
+class ValidateOTPRequest(BaseModel):
+    email: EmailStr
+    otp_code: str = Field(..., min_length=4, max_length=8, description="6-digit verification code")
+
+class VerifyOTPResetRequest(BaseModel):
+    email: EmailStr
+    otp_code: str = Field(..., min_length=4, max_length=8, description="6-digit verification code")
+    new_password: str = Field(..., min_length=6, description="New password must be at least 6 characters")
+
+
+
 class UserResponse(BaseModel):
     id: str
     email: str

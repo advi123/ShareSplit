@@ -2,16 +2,135 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ShareSplit — Shared Home & Group Expense Manager</title>
+
+    <!-- App Favicons and PWA Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Mobile Theme & Web App Metadata -->
+    <meta name="theme-color" content="#090d16" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ShareSplit" />
+
     <!-- Google Fonts Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+      try {
+        const theme = localStorage.getItem('sharesplit_theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        } else if (theme === 'light') {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (e) {}
+    </script>
+    <style>
+      /* Pre-React Instant Splash Screen */
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #090d16;
+        color: #f8fafc;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        z-index: 9999;
+      }
+      html:not(.dark) #app-splash {
+        background-color: #f8fafc;
+        color: #0f172a;
+      }
+      .splash-icon-wrapper {
+        position: relative;
+        margin-bottom: 20px;
+      }
+      .splash-glow {
+        position: absolute;
+        inset: -14px;
+        background: radial-gradient(circle, rgba(16, 185, 129, 0.45) 0%, rgba(16, 185, 129, 0) 70%);
+        border-radius: 32px;
+        filter: blur(10px);
+        animation: splashGlowPulse 2.4s ease-in-out infinite;
+      }
+      .splash-icon {
+        position: relative;
+        width: 88px;
+        height: 88px;
+        border-radius: 24px;
+        box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.45);
+        object-fit: cover;
+      }
+      .splash-wordmark {
+        height: 32px;
+        width: auto;
+        object-fit: contain;
+      }
+      .dark .splash-wordmark-light { display: none; }
+      .dark .splash-wordmark-dark { display: block; }
+      html:not(.dark) .splash-wordmark-light { display: block; }
+      html:not(.dark) .splash-wordmark-dark { display: none; }
+
+      .splash-subtitle {
+        font-size: 13px;
+        font-weight: 500;
+        opacity: 0.7;
+        margin-top: 10px;
+        text-align: center;
+        max-width: 270px;
+        line-height: 1.45;
+      }
+      .splash-bar {
+        width: 190px;
+        height: 5px;
+        background: rgba(148, 163, 184, 0.22);
+        border-radius: 999px;
+        overflow: hidden;
+        margin-top: 24px;
+        position: relative;
+      }
+      .splash-progress {
+        width: 45%;
+        height: 100%;
+        background: linear-gradient(90deg, #10b981, #34d399, #10b981);
+        border-radius: 999px;
+        animation: splashMove 1.6s ease-in-out infinite;
+      }
+      @keyframes splashGlowPulse {
+        0%, 100% { opacity: 0.4; transform: scale(0.95); }
+        50% { opacity: 0.9; transform: scale(1.06); }
+      }
+      @keyframes splashMove {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(250%); }
+      }
+    </style>
   </head>
   <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased min-h-screen">
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-splash">
+        <div class="splash-icon-wrapper">
+          <div class="splash-glow"></div>
+          <img class="splash-icon" src="/icon.png" alt="ShareSplit Logo" width="88" height="88" />
+        </div>
+        <img class="splash-wordmark splash-wordmark-light" src="/logo-text-light.png" alt="ShareSplit" height="32" />
+        <img class="splash-wordmark splash-wordmark-dark" src="/logo-text-dark.png" alt="ShareSplit" height="32" />
+        <p class="splash-subtitle">Smart Expense Sharing & Minimal Debt Settlement</p>
+        <div class="splash-bar">
+          <div class="splash-progress"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

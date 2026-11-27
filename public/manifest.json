@@ -1,8 +1,10 @@
 {
-  "name": "ShareSplit — Shared Home & Group Expense Manager",
+  "name": "ShareSplit",
   "short_name": "ShareSplit",
-  "description": "Smart roommate and group expense sharing with minimal debt settlement",
+  "description": "Smart Shared Home & Group Expense Manager",
   "start_url": "/",
+  "id": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#090d16",
@@ -11,19 +13,32 @@
     {
       "src": "/favicon-32.png",
       "sizes": "32x32",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
